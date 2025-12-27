@@ -7,7 +7,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -16,9 +20,11 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import ly.hall.jetlagmobile.ui.theme.JetLagMobileTheme
 import org.maplibre.android.MapLibre
+import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import uniffi.jet_lag_mobile.MapState
 import uniffi.jet_lag_mobile.ViewState
 
 class GameScreen : ComponentActivity() {
@@ -34,10 +40,17 @@ class GameScreen : ComponentActivity() {
 fun MapLibreMap(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-
-    // Create ViewState from Rust
     val viewState = remember { ViewState() }
-    val styleJson = remember(viewState) { viewState.getStyle() }
+    var mapState by remember { mutableStateOf<MapState?>(null) }
+    var map by remember { mutableStateOf<MapLibreMap?>(null) }
+
+    LaunchedEffect(viewState) { mapState = viewState.getMapState() }
+
+    LaunchedEffect(map, mapState) {
+        val m = map ?: return@LaunchedEffect
+        val ms = mapState ?: return@LaunchedEffect
+        m.setStyle(Style.Builder().fromJson(ms.getStyle()))
+    }
 
     val mapView = remember {
         val options =
@@ -48,9 +61,7 @@ fun MapLibreMap(modifier: Modifier = Modifier) {
                     logoEnabled(false)
                 }
 
-        MapView(context, options).apply {
-            getMapAsync { map -> map.setStyle(Style.Builder().fromJson(styleJson)) }
-        }
+        MapView(context, options).apply { getMapAsync { map = it } }
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -68,6 +79,7 @@ fun MapLibreMap(modifier: Modifier = Modifier) {
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             mapView.onDestroy()
+            mapState?.destroy()
             viewState.destroy()
         }
     }

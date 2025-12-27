@@ -9,3 +9,4 @@ name = "jet_lag_mobile"
 
 [dependencies]
 uniffi = "0.30"
+tokio = { version = "1", features = ["sync"] }
