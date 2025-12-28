@@ -1,10 +1,13 @@
+pub mod source;
+
 use std::path::PathBuf;
 
-use crate::tile_server::{TileServer, TileServerError};
+use crate::{
+    state::view::map::source::MapSource,
+    tile_server::{TileServer, TileServerError},
+};
 
 const DEFAULT_STYLE: &str = include_str!("../../../../assets/libre-theme.json");
-const PMTILES_PATH: &str = "/data/data/ly.hall.jetlagmobile/files/nyc_tiles.pmtiles"; // Hardcoded for now
-const PMTILES_MASK: &str = "/data/data/ly.hall.jetlagmobile/files/nyc_bounds.geojson"; // Hardcoded for now
 
 #[derive(uniffi::Object)]
 pub struct MapState {
@@ -14,9 +17,9 @@ pub struct MapState {
 }
 
 impl MapState {
-    pub async fn new() -> Result<Self, TileServerError> {
-        let tile_server = TileServer::start(PathBuf::from(PMTILES_PATH))?;
-        let mask_geojson = std::fs::read_to_string(PMTILES_MASK)?;
+    pub async fn new(source: MapSource) -> Result<Self, TileServerError> {
+        let tile_server = TileServer::start(PathBuf::from(source.pmtiles_path))?;
+        let mask_geojson = std::fs::read_to_string(source.bounds_path)?;
         let style_json = build_style(DEFAULT_STYLE, tile_server.port(), &mask_geojson);
 
         Ok(Self {
@@ -57,6 +60,20 @@ fn build_style(base_style: &str, port: u16, mask_geojson: &str) -> String {
         }
 
         // Add the play area mask source
+        if let Some(complexes_geojson) = parse_mask_geojson(
+            &std::fs::read_to_string("/data/data/ly.hall.jetlagmobile/files/complexes.geojson")
+                .unwrap(),
+        ) {
+            sources.insert(
+                "complexes".to_string(),
+                serde_json::json!({
+                    "type": "geojson",
+                    "data": complexes_geojson
+                }),
+            );
+        }
+
+        // Add the play area mask source
         if let Some(playarea_geojson) = parse_mask_geojson(mask_geojson) {
             sources.insert(
                 "playarea".to_string(),
@@ -74,18 +91,22 @@ fn build_style(base_style: &str, port: u16, mask_geojson: &str) -> String {
     // Insert playarea-fill layer after world-water but before local water
     if let Some(layers) = style.get_mut("layers").and_then(|l| l.as_array_mut()) {
         // Find the index of world-water layer
-        if let Some(idx) = layers.iter().position(|l| {
-            l.get("id").and_then(|id| id.as_str()) == Some("world-water")
-        }) {
+        if let Some(idx) = layers
+            .iter()
+            .position(|l| l.get("id").and_then(|id| id.as_str()) == Some("world-water"))
+        {
             // Insert playarea background right after world-water
-            layers.insert(idx + 1, serde_json::json!({
-                "id": "playarea-background",
-                "type": "fill",
-                "source": "playarea",
-                "paint": {
-                    "fill-color": "#faf7f8"
-                }
-            }));
+            layers.insert(
+                idx + 1,
+                serde_json::json!({
+                    "id": "playarea-background",
+                    "type": "fill",
+                    "source": "playarea",
+                    "paint": {
+                        "fill-color": "#faf7f8"
+                    }
+                }),
+            );
         }
 
         // Add "within" filter to line layers using the local openmaptiles source
@@ -118,7 +139,6 @@ fn build_style(base_style: &str, port: u16, mask_geojson: &str) -> String {
         }
     }
 
-
     serde_json::to_string(&style).unwrap()
 }
 
@@ -141,7 +161,10 @@ fn extract_geometry_for_filter(geojson_str: &str) -> Option<serde_json::Value> {
         }
         geojson::GeoJson::FeatureCollection(fc) => {
             // Extract the first feature from the collection
-            fc.features.into_iter().next().and_then(|feat| serde_json::to_value(&feat).ok())
+            fc.features
+                .into_iter()
+                .next()
+                .and_then(|feat| serde_json::to_value(&feat).ok())
         }
     }
 }

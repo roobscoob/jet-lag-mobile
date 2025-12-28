@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use crate::state::view::map::MapState;
+use crate::state::view::map::{MapState, source::MapSource};
 
 pub mod map;
 
@@ -34,7 +34,7 @@ impl ViewState {
 
         let mut guard = self.map.write().await;
         let new_map = Arc::new(
-            MapState::new()
+            MapState::new(MapSource::nyc())
                 .await
                 .map_err(|e| MapError::TileServer(e.to_string()))?,
         );

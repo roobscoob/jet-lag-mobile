@@ -529,6 +529,14 @@
                     2
                 ]
             }
+        },
+        {
+            "id": "stations",
+            "type": "fill",
+            "source": "complexes",
+            "paint": {
+                "fill-color": "#dac79d"
+            }
         }
     ],
     "id": "ivegi9d"
