@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
-use crate::tile_server::TileServer;
+use crate::tile_server::{TileServer, TileServerError};
 
 const DEFAULT_STYLE: &str = include_str!("../../../../assets/libre-theme.json");
-const TILES_DIR: &str = "/path/to/tiles"; // Hardcoded for now
+const PMTILES_PATH: &str = "/data/data/ly.hall.jetlagmobile/files/nyc_tiles.pmtiles"; // Hardcoded for now
+const PMTILES_MASK: &str = "/data/data/ly.hall.jetlagmobile/files/nyc_bounds.geojson"; // Hardcoded for now
 
 #[derive(uniffi::Object)]
 pub struct MapState {
@@ -13,14 +14,15 @@ pub struct MapState {
 }
 
 impl MapState {
-    pub async fn new() -> Self {
-        let tile_server = TileServer::start(PathBuf::from(TILES_DIR)).unwrap();
-        let style_json = rewrite_style_sources(DEFAULT_STYLE, tile_server.port());
+    pub async fn new() -> Result<Self, TileServerError> {
+        let tile_server = TileServer::start(PathBuf::from(PMTILES_PATH))?;
+        let mask_geojson = std::fs::read_to_string(PMTILES_MASK)?;
+        let style_json = build_style(DEFAULT_STYLE, tile_server.port(), &mask_geojson);
 
-        Self {
+        Ok(Self {
             style_json,
             tile_server,
-        }
+        })
     }
 }
 
@@ -31,26 +33,115 @@ impl MapState {
     }
 }
 
-fn rewrite_style_sources(base_style: &str, port: u16) -> String {
+fn build_style(base_style: &str, port: u16, mask_geojson: &str) -> String {
     let mut style: serde_json::Value = serde_json::from_str(base_style).unwrap();
 
-    if let Some(sources) = style.get_mut("sources").and_then(|s| s.as_object_mut()) {
-        for (_name, source) in sources.iter_mut() {
-            if let Some(obj) = source.as_object_mut() {
-                let source_type = obj.get("type").and_then(|t| t.as_str()).unwrap_or("");
+    // Set initial map center to Central Park, NYC
+    if let Some(obj) = style.as_object_mut() {
+        obj.insert(
+            "center".to_string(),
+            serde_json::json!([-73.9805655, 40.7571418]),
+        );
+        obj.insert("zoom".to_string(), serde_json::json!(12));
+    }
 
-                if source_type == "vector" {
-                    obj.remove("url");
-                    obj.insert(
-                        "tiles".to_string(),
-                        serde_json::json!([format!(
-                            "http://localhost:{port}/tiles/{{z}}/{{x}}/{{y}}/tile.pbf"
-                        )]),
-                    );
+    if let Some(sources) = style.get_mut("sources").and_then(|s| s.as_object_mut()) {
+        // Update only the local openmaptiles source, not the world one
+        if let Some(source) = sources.get_mut("openmaptiles") {
+            if let Some(obj) = source.as_object_mut() {
+                obj.insert(
+                    "url".to_string(),
+                    serde_json::json!(format!("http://localhost:{port}/tiles.json")),
+                );
+            }
+        }
+
+        // Add the play area mask source
+        if let Some(playarea_geojson) = parse_mask_geojson(mask_geojson) {
+            sources.insert(
+                "playarea".to_string(),
+                serde_json::json!({
+                    "type": "geojson",
+                    "data": playarea_geojson
+                }),
+            );
+        }
+    }
+
+    // Parse the playarea geometry for use in "within" filters
+    let playarea_geometry: Option<serde_json::Value> = extract_geometry_for_filter(mask_geojson);
+
+    // Insert playarea-fill layer after world-water but before local water
+    if let Some(layers) = style.get_mut("layers").and_then(|l| l.as_array_mut()) {
+        // Find the index of world-water layer
+        if let Some(idx) = layers.iter().position(|l| {
+            l.get("id").and_then(|id| id.as_str()) == Some("world-water")
+        }) {
+            // Insert playarea background right after world-water
+            layers.insert(idx + 1, serde_json::json!({
+                "id": "playarea-background",
+                "type": "fill",
+                "source": "playarea",
+                "paint": {
+                    "fill-color": "#faf7f8"
+                }
+            }));
+        }
+
+        // Add "within" filter to line layers using the local openmaptiles source
+        // This clips them to only render within the playarea bounds
+        // Note: "within" only supports Point/LineString, not Polygon geometries,
+        // so we skip fill layers (water, buildings, etc.)
+        if let Some(ref geometry) = playarea_geometry {
+            for layer in layers.iter_mut() {
+                let source = layer.get("source").and_then(|s| s.as_str());
+                let layer_type = layer.get("type").and_then(|t| t.as_str());
+
+                // Only apply "within" to line layers - fill layers have polygon geometries
+                // which MapLibre's "within" expression doesn't support
+                if source == Some("openmaptiles") && layer_type == Some("line") {
+                    if let Some(obj) = layer.as_object_mut() {
+                        let within_filter = serde_json::json!(["within", geometry]);
+
+                        // Combine with existing filter if present
+                        if let Some(existing_filter) = obj.get("filter").cloned() {
+                            obj.insert(
+                                "filter".to_string(),
+                                serde_json::json!(["all", existing_filter, within_filter]),
+                            );
+                        } else {
+                            obj.insert("filter".to_string(), within_filter);
+                        }
+                    }
                 }
             }
         }
     }
 
+
     serde_json::to_string(&style).unwrap()
+}
+
+/// Parse the mask GeoJSON and convert to a serde_json::Value for use as a MapLibre source
+fn parse_mask_geojson(geojson_str: &str) -> Option<serde_json::Value> {
+    let geojson: geojson::GeoJson = geojson_str.parse().ok()?;
+    Some(serde_json::to_value(&geojson).ok()?)
+}
+
+/// Extract just the geometry from a GeoJSON for use in "within" filter expressions
+/// MapLibre's "within" expects a Geometry or Feature, not a FeatureCollection
+fn extract_geometry_for_filter(geojson_str: &str) -> Option<serde_json::Value> {
+    let geojson: geojson::GeoJson = geojson_str.parse().ok()?;
+
+    match geojson {
+        geojson::GeoJson::Geometry(geom) => serde_json::to_value(&geom).ok(),
+        geojson::GeoJson::Feature(feat) => {
+            // Return the whole feature - MapLibre accepts Feature objects in "within"
+            serde_json::to_value(&feat).ok()
+        }
+        geojson::GeoJson::FeatureCollection(fc) => {
+            // Extract the first feature from the collection
+            fc.features.into_iter().next().and_then(|feat| serde_json::to_value(&feat).ok())
+        }
+    }
 }

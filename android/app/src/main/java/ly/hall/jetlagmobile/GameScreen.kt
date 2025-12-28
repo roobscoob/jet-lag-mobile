@@ -20,6 +20,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import ly.hall.jetlagmobile.ui.theme.JetLagMobileTheme
 import org.maplibre.android.MapLibre
+import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
@@ -59,6 +61,13 @@ fun MapLibreMap(modifier: Modifier = Modifier) {
                     // need attribution on a splash screen tho
                     attributionEnabled(false)
                     logoEnabled(false)
+                    // Set initial camera to Central Park, NYC
+                    camera(
+                        CameraPosition.Builder()
+                            .target(LatLng(40.7571418, -73.9805655))
+                            .zoom(12.0)
+                            .build()
+                    )
                 }
 
         MapView(context, options).apply { getMapAsync { map = it } }

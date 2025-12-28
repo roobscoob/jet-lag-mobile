@@ -3,6 +3,10 @@
     "sources": {
         "openmaptiles": {
             "type": "vector",
+            "url": "<REPLACEME>"
+        },
+        "openmaptiles-world": {
+            "type": "vector",
             "url": "https://tiles.openfreemap.org/planet"
         }
     },
@@ -11,7 +15,16 @@
             "id": "background",
             "type": "background",
             "paint": {
-                "background-color": "#faf7f8"
+                "background-color": "#ced5da"
+            }
+        },
+        {
+            "id": "world-water",
+            "type": "fill",
+            "source": "openmaptiles-world",
+            "source-layer": "water",
+            "paint": {
+                "fill-color": "#aecfe0"
             }
         },
         {
@@ -53,7 +66,19 @@
             "minzoom": 13,
             "paint": {
                 "fill-color": "#dcd9d6",
-                "fill-opacity": 0.7
+                "fill-opacity": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    13,
+                    0,
+                    14,
+                    0.7
+                ]
             }
         },
         {
@@ -64,7 +89,20 @@
             "minzoom": 13,
             "paint": {
                 "line-color": "#d4d0ca",
-                "line-width": 0.5
+                "line-width": 0.5,
+                "line-opacity": [
+                    "interpolate",
+                    [
+                        "linear"
+                    ],
+                    [
+                        "zoom"
+                    ],
+                    13,
+                    0,
+                    13.2,
+                    1
+                ]
             }
         },
         {
