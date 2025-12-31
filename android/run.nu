@@ -57,6 +57,9 @@ def main [
     print "Building and installing..."
     ./gradlew installDebug -PtargetDevice=($target_device)
 
+    # Sync data files
+    sync_data_files $target_device
+
     # Launch the app
     print "Launching app..."
     adb -s $target_device shell am start -n $"($package)/($activity)"
@@ -72,6 +75,31 @@ def main [
         print $"Streaming logcat for PID ($pid)... \(Ctrl+C to stop\)"
         adb -s $target_device logcat -v color $"--pid=($pid)"
     }
+}
+
+# Sync files from data directory to device
+def sync_data_files [device: string] {
+    let data_dir = ($env.PWD | path join ".." "data")
+
+    if not ($data_dir | path exists) {
+        print "No data directory found, skipping sync"
+        return
+    }
+
+    let files = (ls $data_dir | where type == file)
+
+    if ($files | is-empty) {
+        print "Data directory is empty, skipping sync"
+        return
+    }
+
+    print $"\nSyncing ($files | length) file\(s) from data directory..."
+
+    for file in $files {
+        nu push-file.nu $file.name
+    }
+
+    print ""
 }
 
 # Get the path to the emulator command

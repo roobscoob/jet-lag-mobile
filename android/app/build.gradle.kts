@@ -60,7 +60,7 @@ val generateUniFFIBindings by tasks.registering(Exec::class) {
 
     val isWindows = System.getProperty("os.name").lowercase().contains("windows")
     if (isWindows) {
-        commandLine("cmd", "/c", "cargo run -p uniffi-bindgen -- generate --library $libPath --language kotlin --out-dir ${bindgenDir.get().asFile.absolutePath}")
+        commandLine("cmd", "/c", "cargo run -p uniffi-bindgen -- generate --library \"$libPath\" --language kotlin --out-dir \"${bindgenDir.get().asFile.absolutePath}\"")
     } else {
         commandLine("cargo", "run", "-p", "uniffi-bindgen", "--", "generate", "--library", libPath.absolutePath, "--language", "kotlin", "--out-dir", bindgenDir.get().asFile.absolutePath)
     }
