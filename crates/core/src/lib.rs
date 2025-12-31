@@ -1,14 +1,10 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+use crate::hide_and_seek::HideAndSeekGame;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod hide_and_seek;
+pub mod map;
+pub mod resource;
+pub mod transit;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+pub enum Game {
+    HideAndSeek(HideAndSeekGame),
 }
