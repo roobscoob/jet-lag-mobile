@@ -4,6 +4,7 @@ members = [
     "crates/core",
     "crates/mobile",
     "crates/api-types",
-    "crates/uniffi-bindgen", "tools/pmtiles-clip",
+    "crates/uniffi-bindgen",
+    "tools/pmtiles-clip",
 ]
 resolver = "2"

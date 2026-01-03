@@ -9,10 +9,18 @@ name = "jet_lag_mobile"
 
 [dependencies]
 uniffi = "0.30"
-tokio = { version = "1", features = ["sync", "rt-multi-thread", "net", "macros", "fs"] }
+tokio = { version = "1", features = [
+    "sync",
+    "rt-multi-thread",
+    "net",
+    "macros",
+    "fs",
+] }
 axum = "0.8"
 tower-http = { version = "0.6", features = ["cors"] }
 serde_json = "1"
 pmtiles = { version = "0.13", features = ["mmap-async-tokio", "tilejson"] }
 thiserror = "2"
 geojson = "0.24"
+palette = "0.7.6"
+jet-lag-core = { path = "../core" }

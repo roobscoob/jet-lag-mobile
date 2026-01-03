@@ -4,9 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+boostvoronoi = "0.12.1"
 bytes = "1"
 futures-core = "0.3"
 futures-util = "0.3"
+glam = "0.30.9"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 serde = { version = "1", features = ["derive"] }
 twox-hash = "2.1.2"
