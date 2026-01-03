@@ -1,5 +1,6 @@
 pub mod state;
 pub(crate) mod tile_server;
+pub mod transit;
 
 uniffi::setup_scaffolding!();
 

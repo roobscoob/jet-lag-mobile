@@ -46,6 +46,12 @@ android {
             jniLibs.srcDir(layout.buildDirectory.dir("rustJniLibs/android"))
         }
     }
+
+    externalNativeBuild {
+        cmake {
+            path = file(projectDir.resolve("src/cpp/CMakeLists.txt"))
+        }
+    }
 }
 
 val generateUniFFIBindings by tasks.registering(Exec::class) {
@@ -98,14 +104,16 @@ dependencies {
 }
 
 tasks.register<Exec>("uvSync") {
-    workingDir = file(".")
+    workingDir = file("${projectDir}/..")
+    enabled = false
     commandLine("uv", "sync")
 }
 
 cargo {
     module = "${projectDir}/../../crates/mobile"
     libname = "jet_lag_mobile"
-    targets = listOf("arm", "arm64", "x86", "x86_64")
+    // targets = listOf("arm", "arm64", "x86", "x86_64")
+    targets = listOf("arm64")
     profile = "release"
     targetDirectory = "${projectDir}/../../target"
     pythonCommand = if (System.getProperty("os.name").startsWith("Windows")) {

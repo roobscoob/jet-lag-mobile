@@ -3,6 +3,9 @@
 # Run the Android app on a device and stream logcat output
 def main [
     --device (-d): string  # Device type: "physical" or "virtual"
+    --steam-run (-s)
+    --kill-gradle (-k)
+    --skip-tile-update (-u)
 ] {
     let package = "ly.hall.jetlagmobile"
     let activity = $"($package).GameScreen"
@@ -53,12 +56,22 @@ def main [
 
     print $"Target device: ($target_device)"
 
+    if $kill_gradle {
+        pkill -f '.*GradleDaemon.*'
+    }
+
     # Install the app
     print "Building and installing..."
-    ./gradlew installDebug -PtargetDevice=($target_device)
+    if $steam_run {
+        steam-run gradle installDebug -PtargetDevice=($target_device) --info
+    } else {
+        gradle installDebug -PtargetDevice=($target_device)
+    }
 
-    # Sync data files
-    sync_data_files $target_device
+    if not $skip_tile_update {
+        # Sync data files
+        sync_data_files $target_device
+    }
 
     # Launch the app
     print "Launching app..."
@@ -70,7 +83,7 @@ def main [
 
     if $pid == "" {
         print "Warning: Could not get app PID, showing unfiltered logcat"
-        adb -s $target_device logcat
+        # adb -s $target_device logcat
     } else {
         print $"Streaming logcat for PID ($pid)... \(Ctrl+C to stop\)"
         adb -s $target_device logcat -v color $"--pid=($pid)"
@@ -109,24 +122,24 @@ def get_emulator_path [] {
     if $direct != null {
         return "emulator"
     }
-    
+
     # Try to find Android SDK location
     let android_home = $env.ANDROID_HOME? | default (
         $env.ANDROID_SDK_ROOT? | default null
     )
-    
+
     if $android_home != null {
         let emulator_path = if $nu.os-info.name == "windows" {
             $"($android_home)\\emulator\\emulator.exe"
         } else {
             $"($android_home)/emulator/emulator"
         }
-        
+
         if ($emulator_path | path exists) {
             return $emulator_path
         }
     }
-    
+
     # Try common Windows location
     if $nu.os-info.name == "windows" {
         let user_home = $env.USERPROFILE
@@ -135,7 +148,7 @@ def get_emulator_path [] {
             return $common_path
         }
     }
-    
+
     print "ERROR: Could not find Android emulator."
     print "Please ensure Android SDK is installed and either:"
     print "  1. Add the emulator to your PATH, or"
@@ -146,20 +159,20 @@ def get_emulator_path [] {
 # Start an Android emulator and wait for it to boot
 def start_emulator [] {
     let emulator_cmd = get_emulator_path
-    
+
     # Get list of available AVDs
     let avds = (^$emulator_cmd -list-avds | lines | where { $in != "" })
-    
+
     if ($avds | is-empty) {
         print "No Android Virtual Devices (AVDs) found."
         print "Create one using Android Studio's AVD Manager."
         exit 1
     }
-    
+
     # Use the first available AVD
     let avd_name = $avds | first
     print $"Starting emulator: ($avd_name)"
-    
+
     # Start emulator in background (detached process)
     if $nu.os-info.name == "windows" {
         # On Windows, use cmd /c start to launch detached
@@ -168,18 +181,18 @@ def start_emulator [] {
         # On Unix-like systems, use nohup
         bash -c $"nohup ($emulator_cmd) -avd ($avd_name) -no-snapshot-load > /dev/null 2>&1 &"
     }
-    
+
     # Wait for emulator to be detected by adb
     print "Waiting for emulator to boot..."
     mut booted = false
     mut attempts = 0
     let max_attempts = 60  # 60 seconds timeout
-    
+
     while not $booted and $attempts < $max_attempts {
         sleep 1sec
         let devices = (adb devices | lines | skip 1 | where { $in != "" } | parse "{id}\t{status}")
         let emulator_devices = ($devices | where { $in.id | str starts-with "emulator-" })
-        
+
         if not ($emulator_devices | is-empty) {
             let device_id = $emulator_devices | first | get id
             # Check if boot is complete
@@ -192,7 +205,7 @@ def start_emulator [] {
         }
         $attempts = $attempts + 1
     }
-    
+
     if not $booted {
         print "Timeout waiting for emulator to boot."
         exit 1
