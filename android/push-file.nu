@@ -46,7 +46,7 @@ def main [
 
     # Step 1: Push to temp location
     print $"  1. Pushing to temp: ($temp_path)"
-    adb push $file $temp_path | ignore
+    adb push $file /data/local/tmp/ | ignore
 
     # Step 2: Ensure app directory exists and copy file
     print $"  2. Copying to app directory..."

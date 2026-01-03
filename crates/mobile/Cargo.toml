@@ -24,3 +24,12 @@ thiserror = "2"
 geojson = "0.24"
 palette = "0.7.6"
 jet-lag-core = { path = "../core" }
+glow = "0.16.0"
+khronos-egl = { version = "6.0.0", features = ["dynamic"] }
+tracing = "0.1.44"
+tracing-logcat = "0.1.0"
+tracing-subscriber = "0.3.22"
+eyre = "0.6.12"
+zerocopy = "0.8.31"
+glam = "0.30.9"
+mercantile = "0.0.1"
