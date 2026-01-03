@@ -48,8 +48,9 @@ def main [
     print $"  1. Pushing to temp: ($temp_path)"
     adb push $file $temp_path | ignore
 
-    # Step 2: Copy from temp to app directory using run-as
+    # Step 2: Ensure app directory exists and copy file
     print $"  2. Copying to app directory..."
+    adb shell run-as $package mkdir -p $app_dir
     adb shell run-as $package cp $temp_path $final_path
 
     # Step 3: Clean up temp file

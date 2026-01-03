@@ -1,11 +1,14 @@
 {
     "version": 8,
+    "metadata": {
+        "maputnik:renderer": "mlgljs"
+    },
     "sources": {
-        "openmaptiles": {
-            "type": "vector",
-            "url": "<REPLACEME>"
-        },
         "openmaptiles-world": {
+            "type": "vector",
+            "url": "https://tiles.openfreemap.org/planet"
+        },
+        "openmaptiles": {
             "type": "vector",
             "url": "https://tiles.openfreemap.org/planet"
         }
@@ -15,7 +18,7 @@
             "id": "background",
             "type": "background",
             "paint": {
-                "background-color": "#ced5da"
+                "background-color": "#c8d1d3"
             }
         },
         {
@@ -23,8 +26,45 @@
             "type": "fill",
             "source": "openmaptiles-world",
             "source-layer": "water",
+            "layout": {
+                "visibility": "visible"
+            },
             "paint": {
                 "fill-color": "#aecfe0"
+            }
+        },
+        {
+            "id": "playarea-background",
+            "type": "fill",
+            "source": "playarea",
+            "paint": {
+                "fill-color": "#f9f6f7"
+            }
+        },
+        {
+            "id": "landuse",
+            "type": "fill",
+            "source": "openmaptiles",
+            "source-layer": "landuse",
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "class",
+                    "residential"
+                ]
+            ],
+            "paint": {
+                "fill-color": "#dcd8d4"
+            }
+        },
+        {
+            "id": "park",
+            "type": "fill",
+            "source": "openmaptiles",
+            "source-layer": "park",
+            "paint": {
+                "fill-color": "#e8e6e4"
             }
         },
         {
@@ -126,6 +166,9 @@
                     "tunnel"
                 ]
             ],
+            "layout": {
+                "visibility": "visible"
+            },
             "paint": {
                 "line-color": "#fffeff",
                 "line-width": [
@@ -170,6 +213,9 @@
                     "tunnel"
                 ]
             ],
+            "layout": {
+                "visibility": "visible"
+            },
             "paint": {
                 "line-color": "#fffeff",
                 "line-width": [
@@ -537,6 +583,33 @@
             "paint": {
                 "fill-color": "#365779",
                 "fill-opacity": 0.6
+            }
+        },
+        {
+            "id": "runway",
+            "type": "line",
+            "source": "openmaptiles",
+            "source-layer": "aeroway",
+            "filter": [
+                "all",
+                [
+                    "==",
+                    "class",
+                    "runway"
+                ],
+                [
+                    "!=",
+                    "$type",
+                    "Polygon"
+                ]
+            ],
+            "layout": {
+                "line-cap": "round",
+                "line-join": "round"
+            },
+            "paint": {
+                "line-color": "#c0beb9",
+                "line-width": 5
             }
         }
     ],

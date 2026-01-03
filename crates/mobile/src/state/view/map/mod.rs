@@ -97,25 +97,6 @@ fn build_style(base_style: &str, port: u16, mask_geojson: &str, complexes_geojso
 
     // Insert playarea-fill layer after world-water but before local water
     if let Some(layers) = style.get_mut("layers").and_then(|l| l.as_array_mut()) {
-        // Find the index of world-water layer
-        if let Some(idx) = layers
-            .iter()
-            .position(|l| l.get("id").and_then(|id| id.as_str()) == Some("world-water"))
-        {
-            // Insert playarea background right after world-water
-            layers.insert(
-                idx + 1,
-                serde_json::json!({
-                    "id": "playarea-background",
-                    "type": "fill",
-                    "source": "playarea",
-                    "paint": {
-                        "fill-color": "#faf7f8"
-                    }
-                }),
-            );
-        }
-
         // Add "within" filter to line layers using the local openmaptiles source
         // This clips them to only render within the playarea bounds
         // Note: "within" only supports Point/LineString, not Polygon geometries,
