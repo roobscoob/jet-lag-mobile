@@ -2,6 +2,8 @@ pub mod layers;
 pub mod render;
 pub mod state;
 pub(crate) mod tile_server;
+#[cfg(target_os = "android")]
+mod android;
 
 uniffi::setup_scaffolding!();
 

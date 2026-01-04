@@ -2,21 +2,20 @@ mod oob {
   #[cfg(target_os = "android")]
   pub mod android;
 }
-pub mod transit {
-  //#[cfg(target_os = "android")]
-  //pub mod android;
+pub mod test_square {
+  #[cfg(target_os = "android")]
+  pub mod android;
 }
 
 mod android {
   use std::{panic::PanicHookInfo, ptr, sync::Once};
 
   use glam::DMat4;
-  use palette::white_point::E;
   use tracing::Level;
   use tracing_logcat::{LogcatMakeWriter, LogcatTag};
   use tracing_subscriber::fmt::format::Format;
 
-  use crate::layers::oob::android::OutOfBoundsLayer;
+  use crate::layers::{oob::android::OutOfBoundsLayer, test_square::android::TestSquare};
 
   fn setup_logging() {
     static LOGGING_SETUP: Once = Once::new();
@@ -108,6 +107,7 @@ mod android {
   unsafe impl Sync for CustomLayerVTable {}
 
   static OUT_OF_BOUNDS_LAYER: CustomLayerVTable = custom::<OutOfBoundsLayer>();
+  static TEST_SQUARE_LAYER: CustomLayerVTable = custom::<TestSquare>();
 
   #[unsafe(export_name = "fetchCustomLayerVtable")]
   extern "C" fn fetch_custom_layer_vtable(kind: u32) -> *const CustomLayerVTable {
@@ -115,47 +115,9 @@ mod android {
     tracing::info!("fetching custom layer vtable: {kind}");
     match kind {
       0 => &raw const OUT_OF_BOUNDS_LAYER,
+      1 => &raw const TEST_SQUARE_LAYER,
       _ => {
         panic!("picked an invalid layer")
-      }
-    }
-  }
-
-  pub mod gl {
-    use std::{
-      sync::LazyLock,
-      thread::{self, ThreadId},
-    };
-
-    use khronos_egl::DynamicInstance;
-
-    pub fn get_gl_context() -> &'static glow::Context {
-      static DYNAMIC: LazyLock<glow::Context> = LazyLock::new(|| unsafe {
-        let instance = DynamicInstance::load().expect("failed to obtain egl instance");
-        glow::Context::from_loader_function(move |str| {
-          instance
-            .get_proc_address(str)
-            .map(|x| x as *const _)
-            .unwrap_or_default()
-        })
-      });
-
-      static CONTEXT_THREAD: LazyLock<ThreadId> = LazyLock::new(|| thread::current().id());
-
-      if *CONTEXT_THREAD != thread::current().id() {
-        panic!("accessed gl context on a different thread from normal")
-      }
-
-      &DYNAMIC
-    }
-
-    pub trait GlResult<T> {
-      fn wrap_gl(self) -> eyre::Result<T>;
-    }
-
-    impl<T> GlResult<T> for Result<T, String> {
-      fn wrap_gl(self) -> eyre::Result<T> {
-        self.map_err(|error| eyre::Error::msg(error))
       }
     }
   }

@@ -95,7 +95,7 @@ fun MapLibreMap(modifier: Modifier = Modifier) {
     val m = map ?: return@LaunchedEffect
     val ms = mapState ?: return@LaunchedEffect
 
-    val layer = CustomLayerShim.getCustomLayer(0)
+    val layer = CustomLayerShim.getCustomLayer(1)
 
     m.setStyle(Style.Builder()
       .fromJson(ms.getStyle())
