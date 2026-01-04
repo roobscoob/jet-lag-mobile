@@ -13,7 +13,7 @@ pub enum BoundaryOverlapResolution {
 }
 
 pub enum SdfInstruction {
-    Point {
+    Point { // distance from center point
         position: Position,
         output: Register,
     },

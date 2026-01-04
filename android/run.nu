@@ -65,7 +65,7 @@ def main [
     if $steam_run {
         steam-run gradle installDebug -PtargetDevice=($target_device) --info
     } else {
-        gradle installDebug -PtargetDevice=($target_device)
+        ./gradlew installDebug -PtargetDevice=($target_device)
     }
 
     if not $skip_tile_update {

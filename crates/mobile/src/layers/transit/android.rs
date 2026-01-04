@@ -10,7 +10,6 @@ struct SimpleGraphics {
   pos_attrib: u32,
   proj_uniform: NativeUniformLocation,
   fill_color_uniform: NativeUniformLocation,
-  // zoom_level_uniform: NativeUniformLocation,
   buffer: NativeBuffer,
   program: NativeProgram,
   debug_counter: Cell<u16>,
@@ -31,18 +30,9 @@ impl SimpleGraphics {
       let proj_uniform = gl
         .get_uniform_location(program, "proj")
         .context("no proj uniform")?;
-      // let zoom_level_uniform = gl
-      //   .get_uniform_location(program, "zoom_level")
-      //   .context("no zoom_level uniform")?;
 
       static BACKGROUND: [f32; 8] = {
         let mut base = [-5.0, -5.0, 5.0, -5.0, -5.0, 5.0, 5.0, 5.0];
-        // let mut i = 0;
-        // while i < base.len() {
-        //   base[i + 0] += SQUARE_OFFSET.x;
-        //   base[i + 1] += SQUARE_OFFSET.y;
-        //   i += 2;
-        // }
         base
       };
 

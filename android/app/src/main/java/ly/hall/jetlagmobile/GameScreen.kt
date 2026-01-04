@@ -78,7 +78,7 @@ object CustomLayerShim {
     System.loadLibrary("custom-layer-shim")
   }
 
-  external fun getCustomLayer(): Long
+  external fun getCustomLayer(kind: Int): Long
 }
 
 @Composable
@@ -95,7 +95,7 @@ fun MapLibreMap(modifier: Modifier = Modifier) {
     val m = map ?: return@LaunchedEffect
     val ms = mapState ?: return@LaunchedEffect
 
-    val layer = CustomLayerShim.getCustomLayer()
+    val layer = CustomLayerShim.getCustomLayer(0)
 
     m.setStyle(Style.Builder()
       .fromJson(ms.getStyle())

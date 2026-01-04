@@ -62,20 +62,22 @@
             uv
             cmake
             go
+            openssl
           ];
           buildInputs = with pkgsCross.aarch64-multiplatform; [
             openssl
           ];
           ANDROID_HOME = "${androidsdk}/libexec/android-sdk";
           ANDROID_NDK_ROOT = "${androidndk}/libexec/android-sdk/ndk-bundle";
-          LD_LIBRARY_PATH = lib.makeLibraryPath [
+          LD_LIBRARY_PATH = lib.makeLibraryPath (with pkgsCross.aarch64-multiplatform; [
             openssl
-            nspr
-            nss
-          ];
+          ]);
 
           shellHook = ''
             unset TMPDIR
+            unset TMP
+            unset TEMPDIR
+            unset TEMP
             pkill -f '.*GradleDaemon.*'
           '';
         };

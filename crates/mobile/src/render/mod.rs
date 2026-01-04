@@ -3,6 +3,7 @@ use jet_lag_core::shape::Shape;
 use crate::render::style::Style;
 
 pub mod style;
+mod thread;
 
 pub struct RenderHandle {}
 
