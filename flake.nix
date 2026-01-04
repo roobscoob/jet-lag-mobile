@@ -46,7 +46,7 @@
       {
         formatter = nixfmt-tree;
         inherit inputs;
-        devShells.default = pkgsCross.aarch64-multiplatform.mkShell.override { stdenv = pkgsCross.aarch64-multiplatform.llvmPackages.stdenv; } {
+        devShells.default = pkgsCross.aarch64-multiplatform.mkShellNoCC {
           nativeBuildInputs = [
             (pkgs.fenix.combine [
               pkgs.fenix.stable.defaultToolchain
@@ -63,6 +63,7 @@
             cmake
             go
             openssl
+            pkgsCross.aarch64-multiplatform.llvmPackages.lld
           ];
           buildInputs = with pkgsCross.aarch64-multiplatform; [
             openssl
@@ -78,6 +79,7 @@
             unset TMP
             unset TEMPDIR
             unset TEMP
+            source <(cargo ndk-env -t arm64-v8a)
             pkill -f '.*GradleDaemon.*'
           '';
         };
