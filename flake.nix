@@ -64,6 +64,7 @@
             go
             openssl
             pkgsCross.aarch64-multiplatform.llvmPackages.lld
+            ninja
           ];
           buildInputs = with pkgsCross.aarch64-multiplatform; [
             openssl

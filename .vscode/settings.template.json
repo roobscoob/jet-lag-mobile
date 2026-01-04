@@ -1,0 +1,7 @@
+{
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "rust-analyzer.cargo.target": "aarch64-linux-android",
+  "rust-analyzer.cargo.extraEnv": {
+    "cargo install cargo-ndk": "place the output of `cargo ndk-env -t arm64-v8a --json` in this object"
+  }
+}

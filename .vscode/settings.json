@@ -1,4 +1,0 @@
-{
-    "java.configuration.updateBuildConfiguration": "interactive",
-    "rust-analyzer.cargo.target": "aarch64-linux-android"
-}
