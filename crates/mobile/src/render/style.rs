@@ -3,6 +3,7 @@ use jet_lag_core::shape::types::Centimeters;
 pub enum Size {
     WorldSpace(Centimeters),
     ScreenSpace { pixels: f32 },
+    Maximum(Box<Size>, Box<Size>),
 }
 
 pub enum Pattern {

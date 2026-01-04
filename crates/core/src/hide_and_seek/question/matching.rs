@@ -150,7 +150,7 @@ impl Shape for MatchingQuestionShape {
         let (other_points, question_point) = match &self.question.category {
             // precondition all_airports is non-empty because answer is non-null
             MatchingTarget::CommercialAirport { icao, iata } => {
-                let mut other_points = self
+                let other_points = self
                     .context
                     .all_airports()
                     .iter()
@@ -328,7 +328,7 @@ impl Shape for MatchingQuestionShape {
             }
 
             MatchingTarget::Mountain { id, name } => {
-                let mut other_points = self
+                let other_points = self
                     .context
                     .all_mountains()
                     .iter()
@@ -359,15 +359,15 @@ impl Shape for MatchingQuestionShape {
             MatchingTarget::Park {
                 osm_relation_park_id,
             } => {
-                let mut other_points = self
+                let other_points = self
                     .context
                     .all_parks()
                     .iter()
                     .filter_map(|park| {
-                        if park.osm_relation_id == *osm_relation_park_id {
+                        if park.osm_id == *osm_relation_park_id {
                             None
                         } else {
-                            Some(park)
+                            Some(park.position)
                         }
                     })
                     .collect();
@@ -376,18 +376,18 @@ impl Shape for MatchingQuestionShape {
                     .context
                     .all_parks()
                     .iter()
-                    .find(|park| park.osm_relation_id == *osm_relation_park_id);
+                    .find(|park| park.osm_id == *osm_relation_park_id);
 
                 (
                     compiler.point_cloud(other_points),
-                    compiler.point(question_point.unwrap().boundary.centroid()),
+                    compiler.point(question_point.unwrap().position),
                 )
             }
 
             MatchingTarget::AmusementPark {
                 osm_poi_theme_park_id,
             } => {
-                let mut other_points = self
+                let other_points = self
                     .context
                     .all_amusement_parks()
                     .iter()
@@ -413,7 +413,7 @@ impl Shape for MatchingQuestionShape {
             }
 
             MatchingTarget::Zoo { osm_poi_zoo_id } => {
-                let mut other_points = self
+                let other_points = self
                     .context
                     .all_zoos()
                     .iter()
@@ -441,7 +441,7 @@ impl Shape for MatchingQuestionShape {
             MatchingTarget::Aquarium {
                 osm_poi_aquarium_id,
             } => {
-                let mut other_points = self
+                let other_points = self
                     .context
                     .all_aquariums()
                     .iter()
@@ -467,7 +467,7 @@ impl Shape for MatchingQuestionShape {
             }
 
             MatchingTarget::GolfCourse { osm_poi_golf_id } => {
-                let mut other_points = self
+                let other_points = self
                     .context
                     .all_golf_courses()
                     .iter()
@@ -493,7 +493,7 @@ impl Shape for MatchingQuestionShape {
             }
 
             MatchingTarget::Museum { osm_poi_museum_id } => {
-                let mut other_points = self
+                let other_points = self
                     .context
                     .all_museums()
                     .iter()
@@ -519,7 +519,7 @@ impl Shape for MatchingQuestionShape {
             }
 
             MatchingTarget::MovieTheater { osm_poi_cinema_id } => {
-                let mut other_points = self
+                let other_points = self
                     .context
                     .all_movie_theaters()
                     .iter()
@@ -547,7 +547,7 @@ impl Shape for MatchingQuestionShape {
             MatchingTarget::Hospital {
                 osm_poi_hospital_id,
             } => {
-                let mut other_points = self
+                let other_points = self
                     .context
                     .all_hospitals()
                     .iter()
@@ -573,7 +573,7 @@ impl Shape for MatchingQuestionShape {
             }
 
             MatchingTarget::Library { osm_poi_library_id } => {
-                let mut other_points = self
+                let other_points = self
                     .context
                     .all_libraries()
                     .iter()
@@ -601,7 +601,7 @@ impl Shape for MatchingQuestionShape {
             MatchingTarget::ForeignConsulate {
                 osm_poi_office_diplomatic_id,
             } => {
-                let mut other_points = self
+                let other_points = self
                     .context
                     .all_foreign_consulates()
                     .iter()
