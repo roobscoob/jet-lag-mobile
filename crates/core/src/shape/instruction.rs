@@ -4,8 +4,16 @@ use crate::shape::{compiler::Register, contour_texture::ContourTexture, types::C
 
 #[repr(u8)]
 pub enum BoundaryOverlapResolution {
+    /// When finding the "boundary" between overlapping 'inside' and 'outside' regions,
+    /// take the 'inside' region.
     Inside = 1,
+
+    /// When finding the "boundary" between overlapping 'inside' and 'outside' regions,
+    /// take the 'outside' region.
     Outside = 2,
+
+    /// When finding the "boundary" between overlapping 'inside' and 'outside' regions,
+    /// take the midpoint between the two regions.
     Midpoint = 3,
 }
 
