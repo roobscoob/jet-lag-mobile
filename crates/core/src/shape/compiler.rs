@@ -71,7 +71,7 @@ impl SdfCompiler {
         output
     }
 
-    pub fn geodesic_string(&mut self, points: Vec<geo::Point>) -> Register {
+    pub fn geodesic_string(&mut self, points: geo::LineString) -> Register {
         let output = self.allocate_register();
 
         self.instructions

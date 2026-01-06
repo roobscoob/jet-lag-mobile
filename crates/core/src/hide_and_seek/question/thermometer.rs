@@ -1,12 +1,10 @@
 use geo::{Bearing, InterpolatePoint};
 
 use crate::{
-    hide_and_seek::question::context::QuestionContext,
+    hide_and_seek::question::{Question, context::QuestionContext},
     shape::{
         Shape,
-        builtin::circle::Circle,
         compiler::{Register, SdfCompiler},
-        types::Centimeters,
     },
 };
 
@@ -55,5 +53,33 @@ impl Shape for ThermometerQuestionShape {
                 compiler.great_circle(point, bearing, self.question.start)
             }
         }
+    }
+}
+
+impl Question for ThermometerQuestion {
+    type Answer = ThermometerQuestionAnswer;
+
+    fn to_any(self) -> super::AnyQuestion {
+        super::AnyQuestion::Thermometer(self)
+    }
+
+    fn to_shape(
+        self,
+        answer: Self::Answer,
+        context: Box<dyn QuestionContext>,
+    ) -> Result<Box<dyn Shape>, super::ShapeError> {
+        if self.start == self.end {
+            return Err(super::ShapeError {
+                message: "Thermometer Question has identical start and end points.".to_string(),
+                resolution_hint: Some("The start and end points must be different.".to_string()),
+                class: super::ShapeErrorClass::InvalidParameters,
+            });
+        }
+
+        Ok(Box::new(ThermometerQuestionShape {
+            question: self,
+            answer,
+            context,
+        }))
     }
 }

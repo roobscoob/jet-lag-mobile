@@ -39,7 +39,7 @@ pub enum SdfInstruction {
         output: Register,
     },
     GeodesicString {
-        points: Vec<geo::Point>,
+        points: geo::LineString,
         output: Register,
     },
     Union {

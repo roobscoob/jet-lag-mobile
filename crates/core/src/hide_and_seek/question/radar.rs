@@ -1,5 +1,5 @@
 use crate::{
-    hide_and_seek::question::context::QuestionContext,
+    hide_and_seek::question::{Question, context::QuestionContext},
     shape::{
         Shape,
         builtin::circle::Circle,
@@ -32,5 +32,25 @@ impl Shape for RadarQuestionShape {
             RadarQuestionAnswer::Hit => result,
             RadarQuestionAnswer::Miss => compiler.invert(result),
         }
+    }
+}
+
+impl Question for RadarQuestion {
+    type Answer = RadarQuestionAnswer;
+
+    fn to_any(self) -> super::AnyQuestion {
+        super::AnyQuestion::Radar(self)
+    }
+
+    fn to_shape(
+        self,
+        answer: Self::Answer,
+        context: Box<dyn QuestionContext>,
+    ) -> Result<Box<dyn Shape>, super::ShapeError> {
+        Ok(Box::new(RadarQuestionShape {
+            question: self,
+            answer,
+            context,
+        }))
     }
 }

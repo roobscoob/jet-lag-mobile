@@ -3,9 +3,10 @@ use std::sync::Arc;
 use itertools::Itertools;
 
 use crate::{
-    hide_and_seek::question::context::QuestionContext,
+    hide_and_seek::question::{Question, context::QuestionContext},
     shape::{
         Shape,
+        builtin::circle::Circle,
         compiler::{Register, SdfCompiler},
         instruction::BoundaryOverlapResolution,
         types::Centimeters,
@@ -32,6 +33,7 @@ pub struct TentacleQuestion {
 
 pub enum TentacleQuestionAnswer {
     OutOfRadius,
+    Null,
     WithinRadius { closest_id: Arc<str> },
 }
 
@@ -44,8 +46,12 @@ pub struct TentacleQuestionShape {
 impl Shape for TentacleQuestionShape {
     fn build_into(&self, compiler: &mut SdfCompiler) -> Register {
         let TentacleQuestionAnswer::WithinRadius { ref closest_id } = self.answer else {
-            let center = compiler.point(self.question.center);
-            let circle = compiler.dilate(center, self.question.radius);
+            let circle = compiler.with(&Circle::new(self.question.center, self.question.radius));
+
+            if matches!(self.answer, TentacleQuestionAnswer::Null) {
+                return circle;
+            }
+
             return compiler.invert(circle);
         };
 
@@ -228,5 +234,73 @@ impl Shape for TentacleQuestionShape {
         };
 
         compiler.boundary(tentacle, other, BoundaryOverlapResolution::Inside)
+    }
+}
+
+impl Question for TentacleQuestion {
+    type Answer = TentacleQuestionAnswer;
+
+    fn to_any(self) -> super::AnyQuestion {
+        super::AnyQuestion::Tentacle(self)
+    }
+
+    fn to_shape(
+        self,
+        answer: Self::Answer,
+        context: Box<dyn QuestionContext>,
+    ) -> Result<Box<dyn Shape>, super::ShapeError> {
+        if matches!(answer, TentacleQuestionAnswer::WithinRadius { .. }) {
+            match self.target {
+                TentacleTarget::MetroLine => {}
+
+                TentacleTarget::Museum => {
+                    if !context.has_poi_category("museum") {
+                        return Err(super::ShapeError::missing_data("Museums"));
+                    }
+                }
+
+                TentacleTarget::Library => {
+                    if !context.has_poi_category("library") {
+                        return Err(super::ShapeError::missing_data("Libraries"));
+                    }
+                }
+
+                TentacleTarget::MovieTheater => {
+                    if !context.has_poi_category("movie_theater") {
+                        return Err(super::ShapeError::missing_data("Movie Theaters"));
+                    }
+                }
+
+                TentacleTarget::Hospital => {
+                    if !context.has_poi_category("hospital") {
+                        return Err(super::ShapeError::missing_data("Hospitals"));
+                    }
+                }
+
+                TentacleTarget::Zoo => {
+                    if !context.has_poi_category("zoo") {
+                        return Err(super::ShapeError::missing_data("Zoos"));
+                    }
+                }
+
+                TentacleTarget::Aquarium => {
+                    if !context.has_poi_category("aquarium") {
+                        return Err(super::ShapeError::missing_data("Aquariums"));
+                    }
+                }
+
+                TentacleTarget::AmusementPark => {
+                    if !context.has_poi_category("amusement_park") {
+                        return Err(super::ShapeError::missing_data("Amusement Parks"));
+                    }
+                }
+            }
+        }
+
+        Ok(Box::new(TentacleQuestionShape {
+            question: self,
+            answer,
+            context,
+        }))
     }
 }

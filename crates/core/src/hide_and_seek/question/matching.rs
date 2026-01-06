@@ -4,7 +4,7 @@ use strum::EnumDiscriminants;
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
-    hide_and_seek::question::context::QuestionContext,
+    hide_and_seek::question::{Question, ShapeError, context::QuestionContext},
     shape::{
         Shape,
         compiler::{Register, SdfCompiler},
@@ -132,6 +132,7 @@ pub struct MatchingQuestion {
 }
 
 pub enum MatchingQuestionAnswer {
+    Null,
     Yes,
     No,
 }
@@ -270,6 +271,9 @@ impl Shape for MatchingQuestionShape {
                 );
 
                 return match self.answer {
+                    MatchingQuestionAnswer::Null => {
+                        unreachable!("should be filtered by shape generation")
+                    }
                     MatchingQuestionAnswer::Yes => vdg,
                     MatchingQuestionAnswer::No => compiler.invert(vdg),
                 };
@@ -290,6 +294,9 @@ impl Shape for MatchingQuestionShape {
                 );
 
                 return match self.answer {
+                    MatchingQuestionAnswer::Null => {
+                        unreachable!("should be filtered by shape generation")
+                    }
                     MatchingQuestionAnswer::Yes => vdg,
                     MatchingQuestionAnswer::No => compiler.invert(vdg),
                 };
@@ -310,6 +317,9 @@ impl Shape for MatchingQuestionShape {
                 );
 
                 return match self.answer {
+                    MatchingQuestionAnswer::Null => {
+                        unreachable!("should be filtered by shape generation")
+                    }
                     MatchingQuestionAnswer::Yes => vdg,
                     MatchingQuestionAnswer::No => compiler.invert(vdg),
                 };
@@ -330,6 +340,9 @@ impl Shape for MatchingQuestionShape {
                 );
 
                 return match self.answer {
+                    MatchingQuestionAnswer::Null => {
+                        unreachable!("should be filtered by shape generation")
+                    }
                     MatchingQuestionAnswer::Yes => vdg,
                     MatchingQuestionAnswer::No => compiler.invert(vdg),
                 };
@@ -591,6 +604,9 @@ impl Shape for MatchingQuestionShape {
         };
 
         match self.answer {
+            MatchingQuestionAnswer::Null => {
+                unreachable!("should be filtered by shape generation")
+            }
             MatchingQuestionAnswer::Yes => compiler.boundary(
                 question_point,
                 other_points,
@@ -603,5 +619,147 @@ impl Shape for MatchingQuestionShape {
                 BoundaryOverlapResolution::Inside,
             ),
         }
+    }
+}
+
+impl Question for MatchingQuestion {
+    type Answer = MatchingQuestionAnswer;
+
+    fn to_any(self) -> crate::hide_and_seek::question::AnyQuestion {
+        crate::hide_and_seek::question::AnyQuestion::Matching(self)
+    }
+
+    fn to_shape(
+        self,
+        answer: Self::Answer,
+        context: Box<dyn QuestionContext>,
+    ) -> Result<Box<dyn Shape>, crate::hide_and_seek::question::ShapeError> {
+        if matches!(answer, MatchingQuestionAnswer::Null) {
+            return Err(ShapeError {
+                message: "No POIs available to answer Matching Question.".to_string(),
+                resolution_hint: Some(
+                    "Your game map should include POIs for this category.".to_string(),
+                ),
+                class: super::ShapeErrorClass::NoEntropy,
+            });
+        };
+
+        match self.category {
+            MatchingTarget::TransitLine { .. } | MatchingTarget::StationsNameLength(..) => {}
+
+            MatchingTarget::CommercialAirport { .. } => {
+                if !context.has_poi_category("airport") {
+                    return Err(ShapeError::missing_data("Airports"));
+                }
+            }
+
+            MatchingTarget::StreetOrPath { .. } => {
+                if !context.has_street_or_path_data() {
+                    return Err(ShapeError::missing_data("Streets & Paths"));
+                }
+            }
+
+            MatchingTarget::FirstAdministrativeDivision { .. } => {
+                if !context.has_area_category("first_administrative_division") {
+                    return Err(ShapeError::missing_data("Administrative Divisions"));
+                }
+            }
+
+            MatchingTarget::SecondAdministrativeDivision { .. } => {
+                if !context.has_area_category("second_administrative_division") {
+                    return Err(ShapeError::missing_data("Administrative Divisions"));
+                }
+            }
+
+            MatchingTarget::ThirdAdministrativeDivision { .. } => {
+                if !context.has_area_category("third_administrative_division") {
+                    return Err(ShapeError::missing_data("Administrative Divisions"));
+                }
+            }
+
+            MatchingTarget::FourthAdministrativeDivision { .. } => {
+                if !context.has_area_category("fourth_administrative_division") {
+                    return Err(ShapeError::missing_data("Administrative Divisions"));
+                }
+            }
+
+            MatchingTarget::Landmass { .. } => {
+                if !context.has_area_category("landmass") {
+                    return Err(ShapeError::missing_data("Landmasses"));
+                }
+            }
+
+            MatchingTarget::Park { .. } => {
+                if !context.has_poi_category("park") {
+                    return Err(ShapeError::missing_data("Parks"));
+                }
+            }
+
+            MatchingTarget::AmusementPark { .. } => {
+                if !context.has_poi_category("amusement_park") {
+                    return Err(ShapeError::missing_data("Amusement Parks"));
+                }
+            }
+
+            MatchingTarget::Zoo { .. } => {
+                if !context.has_poi_category("zoo") {
+                    return Err(ShapeError::missing_data("Zoos"));
+                }
+            }
+
+            MatchingTarget::Aquarium { .. } => {
+                if !context.has_poi_category("aquarium") {
+                    return Err(ShapeError::missing_data("Aquariums"));
+                }
+            }
+
+            MatchingTarget::GolfCourse { .. } => {
+                if !context.has_poi_category("golf_course") {
+                    return Err(ShapeError::missing_data("Golf Courses"));
+                }
+            }
+
+            MatchingTarget::Museum { .. } => {
+                if !context.has_poi_category("museum") {
+                    return Err(ShapeError::missing_data("Museums"));
+                }
+            }
+
+            MatchingTarget::MovieTheater { .. } => {
+                if !context.has_poi_category("movie_theater") {
+                    return Err(ShapeError::missing_data("Movie Theaters"));
+                }
+            }
+
+            MatchingTarget::Hospital { .. } => {
+                if !context.has_poi_category("hospital") {
+                    return Err(ShapeError::missing_data("Hospitals"));
+                }
+            }
+
+            MatchingTarget::Library { .. } => {
+                if !context.has_poi_category("library") {
+                    return Err(ShapeError::missing_data("Libraries"));
+                }
+            }
+
+            MatchingTarget::ForeignConsulate { .. } => {
+                if !context.has_poi_category("foreign_consulate") {
+                    return Err(ShapeError::missing_data("Foreign Consulates"));
+                }
+            }
+
+            MatchingTarget::Mountain { .. } => {
+                if !context.has_poi_category("mountain") {
+                    return Err(ShapeError::missing_data("Mountains"));
+                }
+            }
+        }
+
+        Ok(Box::new(MatchingQuestionShape {
+            question: self,
+            answer,
+            context,
+        }))
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    hide_and_seek::question::context::QuestionContext,
+    hide_and_seek::question::{Question, context::QuestionContext},
     shape::{
         Shape,
         compiler::{Register, SdfCompiler},
@@ -38,6 +38,7 @@ pub struct MeasuringQuestion {
 }
 
 pub enum MeasuringQuestionAnswer {
+    Null,
     Closer,
     Further,
 }
@@ -62,9 +63,25 @@ impl Shape for MeasuringQuestionShape {
                 // therefore: the hider area needs to be negative where the elevation is greater than the zero_value.
 
                 return match self.answer {
+                    MeasuringQuestionAnswer::Null => {
+                        unreachable!("should be filtered by shape generation")
+                    }
                     MeasuringQuestionAnswer::Closer => contour,
                     MeasuringQuestionAnswer::Further => compiler.invert(contour),
                 };
+            }
+
+            // also special-cased.
+            MeasuringTarget::HighSpeedRailLine => {
+                let paths = self
+                    .context
+                    .high_speed_rail_lines()
+                    .unwrap()
+                    .iter()
+                    .map(|path| compiler.geodesic_string(path.positions.clone()))
+                    .collect::<Vec<_>>();
+
+                compiler.union(paths)
             }
 
             MeasuringTarget::CommercialAirport => compiler.point_cloud(
@@ -75,8 +92,6 @@ impl Shape for MeasuringQuestionShape {
                     .map(|a| a.position)
                     .collect(),
             ),
-
-            MeasuringTarget::HighSpeedRailLine => todo!(),
 
             MeasuringTarget::RailStation => compiler.point_cloud(
                 self.context
@@ -234,8 +249,159 @@ impl Shape for MeasuringQuestionShape {
         let dilated = compiler.dilate(vdf, self.question.distance);
 
         match self.answer {
+            MeasuringQuestionAnswer::Null => {
+                unreachable!("should be filtered by shape generation")
+            }
             MeasuringQuestionAnswer::Closer => dilated,
             MeasuringQuestionAnswer::Further => compiler.invert(dilated),
         }
+    }
+}
+
+impl Question for MeasuringQuestion {
+    type Answer = MeasuringQuestionAnswer;
+
+    fn to_any(self) -> super::AnyQuestion {
+        super::AnyQuestion::Measuring(self)
+    }
+
+    fn to_shape(
+        self,
+        answer: Self::Answer,
+        context: Box<dyn QuestionContext>,
+    ) -> Result<Box<dyn Shape>, super::ShapeError> {
+        if matches!(answer, MeasuringQuestionAnswer::Null) {
+            return Err(super::ShapeError {
+                message: "No POIs available to answer Measuring Question.".to_string(),
+                resolution_hint: Some(
+                    "Your game map should include POIs for this category.".to_string(),
+                ),
+                class: super::ShapeErrorClass::NoEntropy,
+            });
+        }
+
+        match self.category {
+            MeasuringTarget::RailStation => {}
+
+            MeasuringTarget::CommercialAirport => {
+                if !context.has_poi_category("airport") {
+                    return Err(super::ShapeError::missing_data("Airports"));
+                }
+            }
+
+            MeasuringTarget::HighSpeedRailLine => {
+                if !context.has_high_speed_rail_line_data() {
+                    return Err(super::ShapeError::missing_data("High-Speed Rail Lines"));
+                }
+            }
+
+            MeasuringTarget::InternationalBorder => {
+                if !context.has_area_category("international_border") {
+                    return Err(super::ShapeError::missing_data("Administrative Divisions"));
+                }
+            }
+
+            MeasuringTarget::FirstAdministrativeDivisionBorder => {
+                if !context.has_area_category("first_administrative_division") {
+                    return Err(super::ShapeError::missing_data("Administrative Divisions"));
+                }
+            }
+
+            MeasuringTarget::SecondAdministrativeDivisionBorder => {
+                if !context.has_area_category("second_administrative_division") {
+                    return Err(super::ShapeError::missing_data("Administrative Divisions"));
+                }
+            }
+
+            MeasuringTarget::SeaLevel => {
+                if !context.has_sea_level_contour_texture() {
+                    return Err(super::ShapeError::missing_data("Sea Level Contour Texture"));
+                }
+            }
+
+            MeasuringTarget::BodyOfWater => {
+                if !context.has_area_category("water_body") {
+                    return Err(super::ShapeError::missing_data("Water Bodies"));
+                }
+            }
+
+            MeasuringTarget::Coastline => {
+                if !context.has_area_category("landmass") {
+                    return Err(super::ShapeError::missing_data("Landmasses"));
+                }
+            }
+
+            MeasuringTarget::Mountain => {
+                if !context.has_poi_category("mountain") {
+                    return Err(super::ShapeError::missing_data("Mountains"));
+                }
+            }
+
+            MeasuringTarget::Park => {
+                if !context.has_poi_category("park") {
+                    return Err(super::ShapeError::missing_data("Parks"));
+                }
+            }
+
+            MeasuringTarget::AmusementPark => {
+                if !context.has_poi_category("amusement_park") {
+                    return Err(super::ShapeError::missing_data("Amusement Parks"));
+                }
+            }
+
+            MeasuringTarget::Zoo => {
+                if !context.has_poi_category("zoo") {
+                    return Err(super::ShapeError::missing_data("Zoos"));
+                }
+            }
+
+            MeasuringTarget::Aquarium => {
+                if !context.has_poi_category("aquarium") {
+                    return Err(super::ShapeError::missing_data("Aquariums"));
+                }
+            }
+
+            MeasuringTarget::GolfCourse => {
+                if !context.has_poi_category("golf_course") {
+                    return Err(super::ShapeError::missing_data("Golf Courses"));
+                }
+            }
+
+            MeasuringTarget::Museum => {
+                if !context.has_poi_category("museum") {
+                    return Err(super::ShapeError::missing_data("Museums"));
+                }
+            }
+
+            MeasuringTarget::MovieTheater => {
+                if !context.has_poi_category("movie_theater") {
+                    return Err(super::ShapeError::missing_data("Movie Theaters"));
+                }
+            }
+
+            MeasuringTarget::Hospital => {
+                if !context.has_poi_category("hospital") {
+                    return Err(super::ShapeError::missing_data("Hospitals"));
+                }
+            }
+
+            MeasuringTarget::Library => {
+                if !context.has_poi_category("library") {
+                    return Err(super::ShapeError::missing_data("Libraries"));
+                }
+            }
+
+            MeasuringTarget::ForeignConsulate => {
+                if !context.has_poi_category("foreign_consulate") {
+                    return Err(super::ShapeError::missing_data("Foreign Consulates"));
+                }
+            }
+        };
+
+        Ok(Box::new(MeasuringQuestionShape {
+            question: self,
+            answer,
+            context,
+        }))
     }
 }
