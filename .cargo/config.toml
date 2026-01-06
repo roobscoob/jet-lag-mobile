@@ -1,2 +1,5 @@
 [env]
 CMAKE_GENERATOR = "Ninja"
+
+[patch.crates-io]
+aws-lc-rs = { git = "https://github.com/roobscoob/aws-lc-rs", branch = "patch-1-on-1.10.0" }

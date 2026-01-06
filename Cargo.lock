@@ -6421,3 +6421,8 @@ name = "zmij"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "30e0d8dffbae3d840f64bda38e28391faef673a7b5a6017840f2a106c8145868"
+
+[[patch.unused]]
+name = "aws-lc-rs"
+version = "1.10.0"
+source = "git+https://github.com/roobscoob/aws-lc-rs?branch=patch-1-on-1.10.0#10afc65fb53e21ef0e5a0ffdc7f06cfdf60e0f8b"

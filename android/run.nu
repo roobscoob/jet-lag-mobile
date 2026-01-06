@@ -10,6 +10,17 @@ def main [
     let package = "ly.hall.jetlagmobile"
     let activity = $"($package).GameScreen"
 
+    # Check if venv exists, if not run uv sync
+    let venv_path = ".venv"
+    if not ($venv_path | path exists) {
+        print "Virtual environment not found. Running uv sync..."
+        uv sync
+        if not ($venv_path | path exists) {
+            print "ERROR: uv sync completed but .venv was not created"
+            exit 1
+        }
+    }
+
     # Get connected devices
     let devices = (adb devices | lines | skip 1 | where { $in != "" } | parse "{id}\t{status}" | where status == "device")
 
