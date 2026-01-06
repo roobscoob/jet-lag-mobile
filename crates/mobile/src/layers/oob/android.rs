@@ -4,7 +4,10 @@ use spatialtree::{QuadTree, QuadVec};
 
 enum TileEntry {
   Loaded {
-    texture: glow::Renderbuffer
+    texture: glow::Renderbuffer,
+  },
+  InProgress {
+    the_: u32,
   }
 }
 

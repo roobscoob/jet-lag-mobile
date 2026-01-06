@@ -13,7 +13,7 @@ use tracing::{debug, error, info};
 use zerocopy::IntoBytes;
 
 use crate::{
-    android::gl::GlResult,
+    android::gl::{GlResult, get_egl_instance},
     layers::android::{CustomLayer, Parameters},
 };
 struct SimpleGraphics {
@@ -25,7 +25,7 @@ struct SimpleGraphics {
     debug_counter: Cell<u16>,
 }
 
-const TILE_SIZE: f64 = 1.0;
+const TILE_SIZE: f64 = 512.0;
 const SQUARE_SIZE: f32 = 1.0;
 
 impl SimpleGraphics {
@@ -87,13 +87,12 @@ impl SimpleGraphics {
 
             let tile_count = 2u32.pow(parameters.zoom as u32);
             let tile_scale = (parameters.zoom * -1.0).exp2().recip();
-            let world_size = TILE_SIZE * tile_count as f64;
 
             let world_matrix = parameters.projection_matrix.mul_mat4(
                 &glam::DMat4::from_scale_rotation_translation(
-                    dvec3(tile_scale * 512.0, tile_scale * 512.0, 1.0),
+                    dvec3(tile_scale * TILE_SIZE, tile_scale * TILE_SIZE, 1.0),
                     DQuat::IDENTITY,
-                    DVec3::new(tile_scale, tile_scale, 1.0),
+                    DVec3::new(0.0, 0.0, 0.0),
                 ),
             );
 
@@ -101,16 +100,16 @@ impl SimpleGraphics {
             // fn translate_point(point: geo::Point) -> (f64, f64) {}
 
             debug!(
-                "tile_count: {tile_count}, world_size: {world_size}, zoom: {}, tile_scale: {}",
+                "tile_count: {tile_count}, zoom: {}, tile_scale: {}",
                 parameters.zoom, tile_scale
             );
-            let draw_tile_at = |zoom: u8, x: u64, y: u64| {
+            let draw_tile_at = |zoom: u8, x: i64, y: i64| {
                 let pos = (2u32.pow(zoom as u32) as f64).recip();
 
                 let mat = world_matrix.mul_mat4(&DMat4::from_scale_rotation_translation(
                     DVec3::new(pos, pos, 1.0),
                     DQuat::IDENTITY,
-                    DVec3::new(pos * x as f64, pos * y as f64, 1.0),
+                    DVec3::new(pos * x as f64, pos * y as f64, 0.0),
                 ));
 
                 let mat = mat.to_cols_array().map(|v| v as f32);
@@ -119,14 +118,82 @@ impl SimpleGraphics {
                 gl.draw_arrays(TRIANGLE_STRIP, 0, 4);
             };
 
-            // draw_tile_at(0, 0, 0);
-            // draw_tile_at(1, 0, 0);
-            // draw_tile_at(2, 2, 1);
-            // draw_tile_at(3, 6, 3);
-            draw_tile_at(4, 3, 3);
+            let zoom_level = parameters.zoom.floor() as u8;
+            let (min_x, min_y, max_x, max_y) =
+                Self::get_visible_tile_bounds(&parameters, zoom_level);
+
+            debug!("range: {:?} {:?}", max_y - min_y, max_x - min_x);
+            for y in min_y..=max_y {
+                for x in min_x..=max_x {
+                    draw_tile_at(zoom_level, x, y);
+                }
+            }
+
+            draw_tile_at(14, 4823, 6160);
         }
 
         Ok(())
+    }
+
+    fn get_visible_tile_bounds(parameters: &Parameters, zoom_level: u8) -> (i64, i64, i64, i64) {
+        let tile_count = 2u32.pow(zoom_level as u32) as f64;
+
+        // Convert lat/lon to tile coordinates at the target zoom level
+        let lat_rad = parameters.latitude.to_radians();
+        let center_tile_x = ((parameters.longitude + 180.0) / 360.0) * tile_count;
+        let center_tile_y =
+            ((1.0 - (lat_rad.tan() + (1.0 / lat_rad.cos())).ln() / std::f64::consts::PI) / 2.0)
+                * tile_count;
+
+        // Get the viewport size
+        use khronos_egl as egl;
+        let instance = get_egl_instance();
+        let display = instance.get_current_display().unwrap();
+        let surface = instance.get_current_surface(egl::DRAW).unwrap();
+        let width = instance
+            .query_surface(display, surface, egl::WIDTH)
+            .unwrap() as f64;
+        let height = instance
+            .query_surface(display, surface, egl::HEIGHT)
+            .unwrap() as f64;
+
+        // Calculate how many tiles fit in the viewport at the current zoom
+        // At zoom level N, the world is tile_count tiles wide
+        // The projection_matrix likely maps world coordinates to screen
+        // We need to figure out the scale factor
+        let tile_scale = (parameters.zoom * -1.0).exp2().recip();
+        let pixels_per_tile = TILE_SIZE * tile_scale;
+
+        // How many tiles fit in viewport width/height
+        let tiles_wide = width / pixels_per_tile;
+        let tiles_high = height / pixels_per_tile;
+
+        debug!("Center tile: {}, {}", center_tile_x, center_tile_y);
+        debug!(
+            "Viewport: {}x{} pixels, {}x{} tiles",
+            width, height, tiles_wide, tiles_high
+        );
+
+        let min_x = center_tile_x - tiles_wide;
+        let max_x = center_tile_x + tiles_wide;
+        let min_y = center_tile_y - tiles_high;
+        let max_y = center_tile_y + tiles_high;
+
+        debug!(
+            "Tile bounds at zoom {}: x=[{}, {}], y=[{}, {}]",
+            zoom_level,
+            min_x.floor(),
+            max_x.ceil(),
+            min_y.floor(),
+            max_y.ceil()
+        );
+
+        (
+            min_x.floor() as i64,
+            min_y.floor() as i64,
+            max_x.ceil() as i64,
+            max_y.ceil() as i64,
+        )
     }
 
     fn cleanup(self, gl: &glow::Context) {}
@@ -157,13 +224,13 @@ impl TestSquare {
                 &format!(
                     r"#version 300 es
 
-          uniform highp mat4 proj;
-          uniform float zoom_level;
- 
-          layout (location = 0) in vec2 a_pos;
-          void main() {{
-            gl_Position = proj * vec4(a_pos, 1.0, 1.0);
-          }}"
+                    uniform highp mat4 proj;
+                    uniform float zoom_level;
+            
+                    layout (location = 0) in vec2 a_pos;
+                    void main() {{
+                        gl_Position = proj * vec4(a_pos, 1.0, 1.0);
+                    }}"
                 ),
             );
             gl.compile_shader(vertex_shader);
@@ -174,11 +241,11 @@ impl TestSquare {
                 fragment_shader,
                 r"#version 300 es
 
-        uniform highp vec4 fill_color;
-        out highp vec4 fragColor;
-        void main() {
-          fragColor = fill_color;
-        }",
+                uniform highp vec4 fill_color;
+                out highp vec4 fragColor;
+                void main() {
+                    fragColor = fill_color;
+                }",
             );
             gl.compile_shader(fragment_shader);
             check_compile_status(fragment_shader, "fragment shader")?;
