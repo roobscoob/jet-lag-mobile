@@ -1,25 +1,37 @@
+use core::{future::Future, pin::Pin, task::Waker};
+use std::{collections::HashMap, sync::OnceLock};
+
 use crate::{
     android::gl::{GlResult, get_gl_context},
     layers::{
         android::CustomLayer,
         oob::{
+            RENDER_SESSION,
             culling::{AABB, Frustum},
             traverse_quadtree::{Tile, TileAction, traverse_quadtree},
         },
     },
+    render::thread::{RenderThread, RequestTile, StartShapeCompilation},
 };
+use actix::{Addr, dev::Request};
 use eyre::{ContextCompat, OptionExt, WrapErr, bail};
 use glam::{DMat4, DQuat, DVec3, dvec3, dvec4};
 use glow::{HasContext, NativeBuffer, NativeProgram, NativeUniformLocation};
-use spatialtree::{QuadTree, QuadVec};
+use jet_lag_core::shape::compiler::Register;
+use pollster::FutureExt;
+use wgpu_hal::gles::TextureInner;
 use zerocopy::IntoBytes;
 
 const TILE_SIZE: f64 = 512.0;
 const MAX_ZOOM: u8 = 20;
 
 enum TileEntry {
-    Loaded { texture: glow::Renderbuffer },
-    InProgress {},
+    Loaded {
+        texture: wgpu::Texture,
+    },
+    InProgress {
+        request: Pin<Box<Request<RenderThread, RequestTile>>>,
+    },
 }
 
 pub struct OutOfBoundsLayer {
@@ -29,7 +41,7 @@ pub struct OutOfBoundsLayer {
     buffer: NativeBuffer,
     program: NativeProgram,
 
-    active_tile_requests: Vec<QuadTree<TileEntry, QuadVec>>,
+    active_tile_requests: HashMap<(u8, u32, u32), TileEntry>,
 }
 
 impl OutOfBoundsLayer {
@@ -138,18 +150,12 @@ impl CustomLayer for OutOfBoundsLayer {
                 border_color_uniform,
                 buffer,
 
-                active_tile_requests: vec![QuadTree::new()],
+                active_tile_requests: HashMap::with_capacity(60),
             })
         }
     }
 
     fn render(&mut self, parameters: &crate::layers::android::Parameters) -> eyre::Result<()> {
-        let zoom = parameters.zoom.max(0.0) as usize;
-        let zoom_layer = self
-            .active_tile_requests
-            .get(zoom)
-            .or_else(|| self.active_tile_requests.last());
-
         use glow::*;
         let gl = get_gl_context();
         unsafe {
@@ -185,7 +191,7 @@ impl CustomLayer for OutOfBoundsLayer {
                 ),
             );
 
-            let draw_tile_at = |zoom: u8, x: f64, y: f64| {
+            let draw_tile_at = |zoom: u8, x: f64, y: f64, texture: glow::Texture| {
                 let pos = (2u32.pow(zoom as u32) as f64).recip();
 
                 let mat = world_matrix.mul_mat4(&DMat4::from_scale_rotation_translation(
@@ -285,8 +291,65 @@ impl CustomLayer for OutOfBoundsLayer {
                 }
             });
 
+            static SHAPE: OnceLock<Register> = OnceLock::new();
+
             for tile in tiles {
-                draw_tile_at(tile.zoom, tile.x0, tile.y0);
+                let tile: Tile = tile;
+                let request_params = (tile.zoom, tile.tile_x, tile.tile_y);
+                match self.active_tile_requests.get_mut(&request_params) {
+                    Some(TileEntry::InProgress { request }) => {
+                        match request
+                            .as_mut()
+                            .poll(&mut core::task::Context::from_waker(Waker::noop()))
+                        {
+                            core::task::Poll::Ready(texture) => {
+                                let texture = texture.unwrap();
+                                let _ = self
+                                    .active_tile_requests
+                                    .insert(request_params, TileEntry::Loaded { texture });
+                            }
+                            core::task::Poll::Pending => {}
+                        }
+                    }
+                    Some(TileEntry::Loaded { texture }) => {
+                        let hal_texture = texture.as_hal::<wgpu_hal::api::Gles>().unwrap();
+                        let TextureInner::Texture { raw, target } = &hal_texture.inner else {
+                            unreachable!("render thread created incorrect type of texture {:#?}", hal_texture.inner)
+                        };
+
+                        draw_tile_at(tile.zoom, tile.x0, tile.y0, *raw);
+                    }
+                    None => {
+                        let mut guard = RENDER_SESSION.lock().unwrap();
+
+                        let register = SHAPE.get_or_init(|| {
+                            let register: Register = guard.test();
+                            let thread: &Addr<RenderThread> = &guard.render_thread;
+                            thread
+                                .send(StartShapeCompilation { register })
+                                .block_on()
+                                .unwrap();
+                            register
+                        });
+
+                        let thread: &Addr<RenderThread> = &guard.render_thread;
+
+                        let request = thread.send(RequestTile {
+                            x: tile.tile_x,
+                            y: tile.tile_y,
+                            z: tile.zoom,
+                            shape: *register,
+                        });
+
+                        let sent_request = request;
+                        self.active_tile_requests.insert(
+                            request_params,
+                            TileEntry::InProgress {
+                                request: Box::pin(sent_request),
+                            },
+                        );
+                    }
+                }
             }
         }
 

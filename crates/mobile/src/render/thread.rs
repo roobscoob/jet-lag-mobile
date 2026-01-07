@@ -80,22 +80,29 @@ impl RenderThread {
             let egl = get_egl_instance();
 
             unsafe {
-                use std::{ffi, ptr};
+                use std::ffi;
 
-                use wgpu::{GlBackendOptions, wgt::DeviceDescriptor};
+                use tracing::debug;
+                use wgpu::{GlBackendOptions, Limits, wgt::DeviceDescriptor};
 
                 let display = egl
                     .get_display(egl::DEFAULT_DISPLAY)
                     .expect("failed to get default display");
 
+                debug!("got context {:?}", context);
+
+                let config = egl
+                    .choose_first_config(display, &[egl::NONE])
+                    .expect("failed to fetch config")
+                    .expect("unable to choose a matching config");
                 let context = egl
                     .create_context(
                         display,
-                        egl::Config::from_ptr(ptr::null_mut()),
+                        config,
                         Some(egl::Context::from_ptr(
                             context.expect("no egl context was sent") as _,
                         )),
-                        &[],
+                        &[egl::CONTEXT_MAJOR_VERSION, 3, egl::NONE],
                     )
                     .expect("failed to create context");
 
@@ -118,7 +125,13 @@ impl RenderThread {
                 });
                 let adapter = instance.create_adapter_from_hal(adapter);
                 adapter
-                    .request_device(&DeviceDescriptor::default())
+                    .request_device(&DeviceDescriptor {
+                        required_limits: Limits {
+                            max_storage_buffers_per_shader_stage: 4,
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    })
                     .await
                     .expect("failed to obtain device")
             }
@@ -151,8 +164,7 @@ struct Shape {
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct StartShapeCompilation {
-    instruction: Vec<SdfInstruction>,
-    register: Register,
+    pub register: Register,
 }
 
 impl Handler<StartShapeCompilation> for RenderThread {
@@ -173,17 +185,9 @@ impl Handler<StartShapeCompilation> for RenderThread {
                 label: None,
                 layout: None,
                 vertex: VertexState {
-                    buffers: &[VertexBufferLayout {
-                        array_stride: size_of::<f32>() as u64 * 2,
-                        attributes: &[VertexAttribute {
-                            offset: 0,
-                            format: wgpu::VertexFormat::Float32,
-                            shader_location: 0,
-                        }],
-                        step_mode: VertexStepMode::Vertex,
-                    }],
+                    buffers: &[],
                     compilation_options: PipelineCompilationOptions::default(),
-                    entry_point: Some("vertex"),
+                    entry_point: Some("vtx_main"),
                     module: &self.vertex_shader,
                 },
                 primitive: PrimitiveState {
@@ -199,7 +203,7 @@ impl Handler<StartShapeCompilation> for RenderThread {
                 multisample: MultisampleState::default(),
                 fragment: Some(FragmentState {
                     module: &l,
-                    entry_point: Some("fragment"),
+                    entry_point: Some("frag_main"),
                     compilation_options: PipelineCompilationOptions::default(),
                     targets: &[Some(ColorTargetState {
                         format: TextureFormat::R32Uint,
@@ -225,10 +229,10 @@ impl Handler<StartShapeCompilation> for RenderThread {
 #[derive(Message)]
 #[rtype(result = "wgpu::Texture")]
 pub struct RequestTile {
-    x: u32,
-    y: u32,
-    z: u32,
-    shape: Register,
+    pub x: u32,
+    pub y: u32,
+    pub z: u8,
+    pub shape: Register,
 }
 
 impl Handler<RequestTile> for RenderThread {
