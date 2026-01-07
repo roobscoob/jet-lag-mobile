@@ -1,6 +1,6 @@
 use crate::shape::types::Centimeters;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Register(u32);
 
 pub struct SdfCompiler {
