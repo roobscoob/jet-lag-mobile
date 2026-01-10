@@ -108,7 +108,8 @@ impl OutOfBoundsLayer {
                     int signedVal = int(unsignedVal) - int(unsignedVal & 0x80000000u) * 2;
 
                     if (signedVal < 500000) {
-                        fragColor = vec4(0.0, 0.0, 1.0, 0.0); // Blue
+                        discard;
+                        // fragColor = vec4(0.0, 0.0, 1.0, 0.0); // Blue
                     } else {
                         fragColor = vec4(float(signedVal) / 10000000.0, 0.0, 0.0, 1.0); // Red gradient
                     }
@@ -187,15 +188,8 @@ impl CustomLayer for OutOfBoundsLayer {
             gl.vertex_attrib_pointer_f32(self.pos_attrib, 2, FLOAT, false, 0, 0);
             gl.disable(STENCIL_TEST);
             gl.disable(DEPTH_TEST);
-
-            // Set border color (cornflower blue at full opacity)
-            // gl.uniform_4_f32(
-            // Some(&self.border_color_uniform),
-            // 100.0 / 255.0,
-            // 149.0 / 255.0,
-            // 237.0 / 255.0,
-            // 1.0,
-            // );
+            gl.enable(BLEND);
+            gl.blend_func(SRC_ALPHA, ONE_MINUS_SRC_ALPHA);
 
             // Set line width for the border (adjust thickness as needed)
             gl.line_width(5.0);
