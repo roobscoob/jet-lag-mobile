@@ -8,11 +8,7 @@ use std::{
     sync::LazyLock,
 };
 
-use naga::{
-    Block, ScalarKind, Span, TypeInner,
-    front::wgsl,
-    valid::{Capabilities, ValidationFlags},
-};
+use naga::{front::wgsl, Block, ScalarKind, Span, TypeInner};
 use strum::IntoDiscriminant;
 use tracing::debug;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
@@ -23,8 +19,9 @@ use crate::shape::{
     instruction::SdfInstruction,
 };
 
-const MODULE_TEMPLATE: LazyLock<naga::Module> =
-    LazyLock::new(|| wgsl::parse_str(include_str!("template.wgsl")).unwrap());
+const MODULE_TEMPLATE: LazyLock<naga::Module> = LazyLock::new(|| {
+    wgsl::parse_str(include_str!(concat!(env!("OUT_DIR"), "/shader_template.wgsl"))).unwrap()
+});
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ShaderSlot {
