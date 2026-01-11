@@ -42,6 +42,15 @@ impl CompiledShape {
                     arguments.insert(slot, Box::new(position));
                 }
 
+                SdfInstruction::PointCloud { bvh, .. } => {
+                    let slot = ShaderSlot {
+                        instruction_index: i as u8,
+                        instruction_key: 0,
+                    };
+
+                    arguments.insert(slot, Box::new(bvh));
+                }
+
                 _ => todo!(),
             }
         }

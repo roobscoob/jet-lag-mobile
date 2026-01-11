@@ -17,7 +17,7 @@ where
         match decide(&tile) {
             TileAction::Enter => {
                 // Push children in reverse order so they're processed in order
-                results.push(tile);
+                // results.push(tile);
                 stack.extend(tile.children().into_iter().rev());
             }
             TileAction::Return => {

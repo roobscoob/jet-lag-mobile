@@ -1,4 +1,5 @@
 pub mod point;
+pub mod point_cloud;
 
 pub struct RoutineResult {
     pub argument_len: u8,

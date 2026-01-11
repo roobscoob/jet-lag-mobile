@@ -27,6 +27,7 @@ use jet_lag_core::{
 };
 use ndk::hardware_buffer::HardwareBufferRef;
 use pollster::FutureExt;
+use rand::Rng;
 use wgpu_hal::gles::TextureInner;
 use zerocopy::IntoBytes;
 
@@ -107,7 +108,7 @@ impl OutOfBoundsLayer {
                     // bitcast unsignedVal to sint
                     int signedVal = int(unsignedVal) - int(unsignedVal & 0x80000000u) * 2;
 
-                    if (signedVal < 500000) {
+                    if (signedVal < 5000) {
                         discard;
                         // fragColor = vec4(0.0, 0.0, 1.0, 0.0); // Blue
                     } else {
@@ -398,19 +399,44 @@ impl CustomLayer for OutOfBoundsLayer {
 
                         SHAPE.call_once(|| {
                             let thread: &Addr<RenderThread> = &guard.render_thread;
-                            struct Point;
-                            impl Shape for Point {
+                            struct TestShape;
+                            impl Shape for TestShape {
                                 fn build_into(
                                     &self,
                                     compiler: &mut jet_lag_core::shape::compiler::SdfCompiler,
                                 ) -> jet_lag_core::shape::compiler::Register
                                 {
-                                    compiler.point(geo::Point::new(-73.9805655, 40.7571418))
+                                    let mut rng = rand::rng();
+                                    let center_lon: f64 = -73.9805655;
+                                    let center_lat: f64 = 40.7571418;
+
+                                    // 10km in degrees (approx)
+                                    let km_to_lat: f64 = 1.0 / 111.0; // 1 degree ≈ 111km
+                                    let km_to_lon: f64 =
+                                        1.0 / (111.0 * center_lat.to_radians().cos()); // adjust for latitude
+
+                                    let points: Vec<Point> = (0..10_000)
+                                        .map(|_| {
+                                            // Exponential falloff: lambda=0.3 gives mean ~3.3km, most within 10km
+                                            let radius_km = -3.3 * rng.random::<f64>().ln(); // exponential with mean 3.3km
+                                            let radius_km = radius_km.min(10.0); // cap at 10km
+
+                                            let angle =
+                                                rng.random_range(0.0..std::f64::consts::TAU);
+
+                                            Point::new(
+                                                center_lon + radius_km * km_to_lon * angle.cos(),
+                                                center_lat + radius_km * km_to_lat * angle.sin(),
+                                            )
+                                        })
+                                        .collect();
+
+                                    compiler.point_cloud(points)
                                 }
                             }
                             thread
                                 .send(StartShapeCompilation {
-                                    shape: Box::new(Point),
+                                    shape: Box::new(TestShape),
                                 })
                                 .block_on()
                                 .unwrap();

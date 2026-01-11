@@ -2966,6 +2966,7 @@ dependencies = [
  "pin-project",
  "pmtiles 0.13.0",
  "pollster",
+ "rand 0.9.2",
  "replace_with",
  "serde_json",
  "spatialtree",

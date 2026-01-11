@@ -10,35 +10,11 @@ fn main() {
 
     // Re-run build if shader files change
     println!("cargo::rerun-if-changed={}", shader_dir.display());
-    for entry in fs::read_dir(shader_dir).expect("Failed to read shader directory") {
-        let entry = entry.unwrap();
-        println!("cargo::rerun-if-changed={}", entry.path().display());
-    }
+    collect_rerun_if_changed(shader_dir);
 
-    // Load all shader sources
+    // Load all shader sources recursively
     let mut modules: HashMap<String, String> = HashMap::new();
-
-    for entry in fs::read_dir(shader_dir).expect("Failed to read shader directory") {
-        let entry = entry.unwrap();
-        let path = entry.path();
-        if path.extension().map_or(false, |e| e == "wgsl") {
-            let content = fs::read_to_string(&path).expect("Failed to read shader file");
-
-            // Extract module name from #define_import_path
-            let module_name = content
-                .lines()
-                .find(|line| line.starts_with("#define_import_path"))
-                .map(|line| line.trim_start_matches("#define_import_path").trim().to_string())
-                .unwrap_or_else(|| {
-                    path.file_stem()
-                        .unwrap()
-                        .to_string_lossy()
-                        .to_string()
-                });
-
-            modules.insert(module_name, content);
-        }
-    }
+    collect_shader_modules(shader_dir, &mut modules);
 
     // Compose the shader by processing imports
     let main_src = modules.get("template").expect("main.wgsl must define template module");
@@ -64,6 +40,44 @@ fn main() {
         out_path.display(),
         composed.len()
     );
+}
+
+fn collect_rerun_if_changed(dir: &Path) {
+    for entry in fs::read_dir(dir).expect("Failed to read shader directory") {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        println!("cargo::rerun-if-changed={}", path.display());
+        if path.is_dir() {
+            collect_rerun_if_changed(&path);
+        }
+    }
+}
+
+fn collect_shader_modules(dir: &Path, modules: &mut HashMap<String, String>) {
+    for entry in fs::read_dir(dir).expect("Failed to read shader directory") {
+        let entry = entry.unwrap();
+        let path = entry.path();
+
+        if path.is_dir() {
+            collect_shader_modules(&path, modules);
+        } else if path.extension().map_or(false, |e| e == "wgsl") {
+            let content = fs::read_to_string(&path).expect("Failed to read shader file");
+
+            // Extract module name from #define_import_path
+            let module_name = content
+                .lines()
+                .find(|line| line.starts_with("#define_import_path"))
+                .map(|line| line.trim_start_matches("#define_import_path").trim().to_string())
+                .unwrap_or_else(|| {
+                    path.file_stem()
+                        .unwrap()
+                        .to_string_lossy()
+                        .to_string()
+                });
+
+            modules.insert(module_name, content);
+        }
+    }
 }
 
 fn compose_shader(source: &str, modules: &HashMap<String, String>) -> String {
@@ -96,17 +110,23 @@ fn collect_imports(
     for line in source.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with("#import") {
-            // Parse import: #import module::name or #import module::name::{items}
-            let import_path = trimmed
-                .trim_start_matches("#import")
-                .trim()
-                .split("::{")
-                .next()
-                .unwrap()
-                .split("::")
-                .take(2) // Take up to 2 components (e.g., template::constants)
-                .collect::<Vec<_>>()
-                .join("::");
+            let import_content = trimmed.trim_start_matches("#import").trim();
+
+            // Parse import: #import module::path::item or #import module::path::{items}
+            let import_path = if import_content.contains("::{") {
+                // Braced import: module path is everything before ::{
+                // e.g., "template::constants::{USE_ELLIPSOID}" -> module is "template::constants"
+                import_content.split("::{").next().unwrap().to_string()
+            } else {
+                // Simple import: module path is everything except the last component
+                // e.g., "template::instruction::point::point" -> module is "template::instruction::point"
+                let parts: Vec<_> = import_content.split("::").collect();
+                if parts.len() > 1 {
+                    parts[..parts.len() - 1].join("::")
+                } else {
+                    import_content.to_string()
+                }
+            };
 
             // Skip if already imported or in current stack (circular)
             if imported.contains(&import_path) || stack.contains(&import_path) {

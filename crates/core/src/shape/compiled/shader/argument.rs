@@ -1,4 +1,4 @@
-use crate::{map::tile::Tile, shape::compiled::shader::ShaderArgument};
+use crate::{map::tile::Tile, shape::{bvh::PointBvh, compiled::shader::ShaderArgument}};
 
 pub trait IntoShaderArgument {
     fn into_shader_argument(&self, buffer: &mut Vec<u8>, tile: &Tile) -> Vec<ShaderArgument>;
@@ -19,5 +19,16 @@ impl IntoShaderArgument for geo::Point {
         buffer.extend_from_slice(&y.to_le_bytes());
 
         vec![ShaderArgument { offset, length: 2 }]
+    }
+}
+
+impl IntoShaderArgument for PointBvh {
+    fn into_shader_argument(&self, buffer: &mut Vec<u8>, _tile: &Tile) -> Vec<ShaderArgument> {
+        let offset = (buffer.len() / 4) as u32;
+        let length = self.serialized_size_u32() as u32;
+
+        self.write_to_buffer(buffer);
+
+        vec![ShaderArgument { offset, length }]
     }
 }

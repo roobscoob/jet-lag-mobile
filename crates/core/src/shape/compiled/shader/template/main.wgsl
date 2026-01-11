@@ -3,14 +3,11 @@
 #import template::constants::{
     USE_ELLIPSOID, USE_HIGH_PRECISION, COORD_SCALE
 }
-#import template::arguments::{
-    ShaderArgument, TileBounds,
-    tile_bounds, popArgument,
-    argument_read_u32, argument_read_i32, argument_read_f32
-}
 #import template::distance::{
     haversine_distance, vincenty_distance
 }
+#import template::instruction::point::point
+#import template::instruction::point_cloud::point_cloud
 
 fn compute(sample: vec2<f32>, idx_ptr: ptr<function, u32>) -> i32 {
     // Placeholder - body is replaced by code generator at runtime

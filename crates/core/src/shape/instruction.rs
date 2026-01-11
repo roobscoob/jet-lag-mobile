@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::shape::{compiler::Register, contour_texture::ContourTexture, types::Centimeters};
+use crate::shape::{bvh::PointBvh, compiler::Register, contour_texture::ContourTexture, types::Centimeters};
 
 #[repr(u8)]
 pub enum BoundaryOverlapResolution {
@@ -27,8 +27,8 @@ pub enum SdfInstruction {
         output: Register,
     },
     PointCloud {
-        // argument index 0
-        points: Vec<geo::Point>,
+        // argument index 0: BVH data (node_count, point_count, nodes..., points...)
+        bvh: PointBvh,
         output: Register,
     },
     GreatCircle {

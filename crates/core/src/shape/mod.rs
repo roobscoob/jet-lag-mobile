@@ -1,4 +1,5 @@
 pub mod builtin;
+pub mod bvh;
 pub mod compiled;
 pub mod compiler;
 pub mod contour_texture;

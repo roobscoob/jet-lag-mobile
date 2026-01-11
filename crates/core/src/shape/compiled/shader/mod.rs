@@ -14,7 +14,7 @@ use tracing::debug;
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 use crate::shape::{
-    compiled::shader::routine::{RoutineResult, point::compile_point},
+    compiled::shader::routine::{RoutineResult, point::compile_point, point_cloud::compile_point_cloud},
     compiler::Register,
     instruction::SdfInstruction,
 };
@@ -89,11 +89,19 @@ impl ShapeShader {
 
         let mut registers = HashMap::<Register, naga::Handle<naga::LocalVariable>>::new();
 
+        type RoutineFn = fn(
+            &mut naga::Module,
+            naga::Handle<naga::Function>,
+            &HashMap<Register, naga::Handle<naga::LocalVariable>>,
+            &str,
+        ) -> RoutineResult;
+
         for (index, instruction) in instructions.enumerate() {
             instruction.discriminant().hash(&mut hasher);
 
-            let (output, routine) = match instruction {
-                SdfInstruction::Point { output, .. } => (*output, compile_point),
+            let (output, routine): (Register, RoutineFn) = match instruction {
+                SdfInstruction::Point { output, .. } => (*output, compile_point as RoutineFn),
+                SdfInstruction::PointCloud { output, .. } => (*output, compile_point_cloud as RoutineFn),
 
                 _ => unimplemented!(),
             };

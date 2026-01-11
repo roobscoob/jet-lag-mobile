@@ -1,8 +1,14 @@
-#define_import_path template
+#define_import_path template::instruction::point
 
 #import template::arguments::{
     tile_bounds, popArgument,
     argument_read_i32
+}
+#import template::constants::{
+    USE_ELLIPSOID, USE_HIGH_PRECISION, COORD_SCALE
+}
+#import template::distance::{
+    haversine_distance, vincenty_distance
 }
 
 // Instruction: Point

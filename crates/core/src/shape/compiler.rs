@@ -40,9 +40,10 @@ impl SdfCompiler {
 
     pub fn point_cloud(&mut self, points: Vec<geo::Point>) -> Register {
         let output = self.allocate_register();
+        let bvh = super::bvh::PointBvh::build(&points);
 
         self.instructions
-            .push(super::instruction::SdfInstruction::PointCloud { points, output });
+            .push(super::instruction::SdfInstruction::PointCloud { bvh, output });
 
         output
     }
