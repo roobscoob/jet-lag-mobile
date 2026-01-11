@@ -1,15 +1,23 @@
 #!/usr/bin/env nu
 
 # Push a file to the app's private data directory
-# Usage: nu push-file.nu <local-file-path> [destination-filename] [--overwrite]
+# Usage: nu push-file.nu <local-file-path> [device] [destination-filename] [--overwrite]
 
 def main [
     file: path,              # Local file to push
+    device?: string,         # Target device (optional, required if multiple devices)
     dest_name?: string,      # Optional destination filename (defaults to source filename)
     --overwrite (-o)         # Force upload even if file exists with same size
 ] {
     let package = "ly.hall.jetlagmobile"
     let app_dir = $"/data/user/0/($package)/files"
+
+    # Build adb command prefix
+    let adb_cmd = if $device != null {
+        $"adb -s ($device)"
+    } else {
+        "adb"
+    }
 
     # Get the filename from the path if dest_name not provided
     let filename = if ($dest_name == null) {
@@ -26,7 +34,7 @@ def main [
     let local_size = (ls $file | get size.0)
 
     # Check if file exists on device and get its size
-    let remote_size = (adb shell run-as $package stat -c %s $final_path
+    let remote_size = (nu -c $"($adb_cmd) shell run-as ($package) stat -c %s ($final_path)"
         | complete
         | if $in.exit_code == 0 { $in.stdout | str trim | into int } else { null })
 
@@ -46,16 +54,16 @@ def main [
 
     # Step 1: Push to temp location
     print $"  1. Pushing to temp: ($temp_path)"
-    adb push $file /data/local/tmp/ | ignore
+    nu -c $"($adb_cmd) push ($file) /data/local/tmp/" | ignore
 
     # Step 2: Ensure app directory exists and copy file
     print $"  2. Copying to app directory..."
-    adb shell run-as $package mkdir -p $app_dir
-    adb shell run-as $package cp $temp_path $final_path
+    nu -c $"($adb_cmd) shell run-as ($package) mkdir -p ($app_dir)"
+    nu -c $"($adb_cmd) shell run-as ($package) cp ($temp_path) ($final_path)"
 
     # Step 3: Clean up temp file
     print $"  3. Cleaning up temp file..."
-    adb shell rm $temp_path
+    nu -c $"($adb_cmd) shell rm ($temp_path)"
 
     print $"✓ Done"
 }

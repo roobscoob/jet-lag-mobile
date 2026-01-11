@@ -97,13 +97,12 @@ impl SdfCompiler {
         output
     }
 
-    pub fn intersection(&mut self, left: Register, right: Register) -> Register {
+    pub fn intersection(&mut self, shapes: Vec<Register>) -> Register {
         let output = self.allocate_register();
 
         self.instructions
             .push(super::instruction::SdfInstruction::Intersection {
-                left,
-                right,
+                shapes,
                 output: output,
             });
 

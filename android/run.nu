@@ -120,7 +120,7 @@ def sync_data_files [device: string] {
     print $"\nSyncing ($files | length) file\(s) from data directory..."
 
     for file in $files {
-        nu push-file.nu $file.name
+        nu push-file.nu $file.name $device
     }
 
     print ""

@@ -8,19 +8,29 @@ use std::{
     sync::LazyLock,
 };
 
-use naga::{front::wgsl, Block, ScalarKind, Span, TypeInner};
+use naga::{
+    Block, ScalarKind, Span, TypeInner,
+    front::wgsl,
+    valid::{ValidationFlags, Validator},
+};
 use strum::IntoDiscriminant;
-use tracing::debug;
+use tracing::{debug, error};
 use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout};
 
 use crate::shape::{
-    compiled::shader::routine::{RoutineResult, point::compile_point, point_cloud::compile_point_cloud},
+    compiled::shader::routine::{
+        RoutineResult, point::compile_point, point_cloud::compile_point_cloud,
+    },
     compiler::Register,
     instruction::SdfInstruction,
 };
 
 const MODULE_TEMPLATE: LazyLock<naga::Module> = LazyLock::new(|| {
-    wgsl::parse_str(include_str!(concat!(env!("OUT_DIR"), "/shader_template.wgsl"))).unwrap()
+    wgsl::parse_str(include_str!(concat!(
+        env!("OUT_DIR"),
+        "/shader_template.wgsl"
+    )))
+    .unwrap()
 });
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -89,19 +99,76 @@ impl ShapeShader {
 
         let mut registers = HashMap::<Register, naga::Handle<naga::LocalVariable>>::new();
 
-        type RoutineFn = fn(
-            &mut naga::Module,
-            naga::Handle<naga::Function>,
-            &HashMap<Register, naga::Handle<naga::LocalVariable>>,
-            &str,
-        ) -> RoutineResult;
+        type RoutineFn = Box<
+            dyn FnMut(
+                &mut naga::Module,
+                naga::Handle<naga::Function>,
+                &HashMap<Register, naga::Handle<naga::LocalVariable>>,
+                &str,
+            ) -> RoutineResult,
+        >;
 
         for (index, instruction) in instructions.enumerate() {
             instruction.discriminant().hash(&mut hasher);
 
-            let (output, routine): (Register, RoutineFn) = match instruction {
-                SdfInstruction::Point { output, .. } => (*output, compile_point as RoutineFn),
-                SdfInstruction::PointCloud { output, .. } => (*output, compile_point_cloud as RoutineFn),
+            let (output, mut routine): (Register, RoutineFn) = match instruction {
+                SdfInstruction::Point { output, .. } => {
+                    (*output, Box::new(compile_point) as RoutineFn)
+                }
+                SdfInstruction::PointCloud { output, .. } => {
+                    (*output, Box::new(compile_point_cloud) as RoutineFn)
+                }
+                // MISSING: GreatCircle
+                // MISSING: Geodesic
+                // MISSING: GeodesicString
+                SdfInstruction::Union { output, shapes } => {
+                    shapes.hash(&mut hasher);
+                    (
+                        *output,
+                        Box::new(routine::union::compile_union(shapes.clone())) as RoutineFn,
+                    )
+                }
+                SdfInstruction::Intersection { output, shapes } => {
+                    shapes.hash(&mut hasher);
+                    (
+                        *output,
+                        Box::new(routine::intersection::compile_intersection(shapes.clone()))
+                            as RoutineFn,
+                    )
+                }
+                SdfInstruction::Subtract {
+                    output,
+                    left,
+                    right,
+                } => {
+                    left.hash(&mut hasher);
+                    right.hash(&mut hasher);
+                    (
+                        *output,
+                        Box::new(routine::subtract::compile_subtract(*left, *right)) as RoutineFn,
+                    )
+                }
+                SdfInstruction::Invert { input, output } => {
+                    input.hash(&mut hasher);
+                    (
+                        *output,
+                        Box::new(routine::invert::compile_invert(*input)) as RoutineFn,
+                    )
+                }
+                SdfInstruction::Dilate { input, output, .. } => {
+                    input.hash(&mut hasher);
+                    (
+                        *output,
+                        Box::new(routine::dilate::compile_dilate(*input)) as RoutineFn,
+                    )
+                }
+                SdfInstruction::Edge { input, output } => {
+                    input.hash(&mut hasher);
+                    (
+                        *output,
+                        Box::new(routine::edge::compile_edge(*input)) as RoutineFn,
+                    )
+                }
 
                 _ => unimplemented!(),
             };
@@ -179,7 +246,23 @@ impl ShapeShader {
             },
             Span::UNDEFINED,
         );
-        debug!("{:#?}", compute_function.body);
+
+        let mut validator =
+            Validator::new(ValidationFlags::all(), naga::valid::Capabilities::all());
+
+        match validator.validate(&module) {
+            Ok(info) => {
+                match naga::back::wgsl::write_string(
+                    &module,
+                    &info,
+                    naga::back::wgsl::WriterFlags::empty(),
+                ) {
+                    Ok(wgsl_string) => debug!("Compiled WGSL:\n{}", wgsl_string),
+                    Err(e) => error!("Failed to format WGSL: {:?}", e),
+                }
+            }
+            Err(e) => error!("Validation failed: {:?}", e),
+        }
 
         let hash = hasher.finish();
 

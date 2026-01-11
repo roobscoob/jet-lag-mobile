@@ -19,6 +19,7 @@ pub fn compile_point_cloud(
         .expect("point_cloud routine not found in module");
 
     // Get function arguments (sample, idx_ptr)
+    // FunctionArgument expressions are already in scope - no need to emit
     let sample_expr = module.functions[into]
         .expressions
         .append(Expression::FunctionArgument(0), Span::UNDEFINED);

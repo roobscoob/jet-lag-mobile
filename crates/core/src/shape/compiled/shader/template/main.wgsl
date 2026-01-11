@@ -8,6 +8,7 @@
 }
 #import template::instruction::point::point
 #import template::instruction::point_cloud::point_cloud
+#import template::instruction::dilate::dilate
 
 fn compute(sample: vec2<f32>, idx_ptr: ptr<function, u32>) -> i32 {
     // Placeholder - body is replaced by code generator at runtime

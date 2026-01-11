@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use crate::shape::{bvh::PointBvh, compiler::Register, contour_texture::ContourTexture, types::Centimeters};
+use crate::shape::{
+    bvh::PointBvh, compiler::Register, contour_texture::ContourTexture, types::Centimeters,
+};
 
 #[repr(u8)]
 pub enum BoundaryOverlapResolution {
@@ -57,8 +59,7 @@ pub enum SdfInstruction {
         output: Register,
     },
     Intersection {
-        left: Register,
-        right: Register,
+        shapes: Vec<Register>,
         output: Register,
     },
     Subtract {

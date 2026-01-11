@@ -51,6 +51,23 @@ impl CompiledShape {
                     arguments.insert(slot, Box::new(bvh));
                 }
 
+                // MISSING: GreatCircle
+                // MISSING: Geodesic
+                // MISSING: GeodesicString
+                SdfInstruction::Union { .. } => {}
+                SdfInstruction::Intersection { .. } => {}
+                SdfInstruction::Subtract { .. } => {}
+                SdfInstruction::Invert { .. } => {}
+                SdfInstruction::Dilate { amount, .. } => {
+                    let slot = ShaderSlot {
+                        instruction_index: i as u8,
+                        instruction_key: 0,
+                    };
+
+                    arguments.insert(slot, Box::new(amount));
+                }
+                SdfInstruction::Edge { .. } => {}
+
                 _ => todo!(),
             }
         }

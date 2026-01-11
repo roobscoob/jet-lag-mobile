@@ -23,7 +23,7 @@ use glam::{DMat4, DQuat, DVec3, dvec3, dvec4};
 use glow::{HasContext, NativeBuffer, NativeProgram, NativeUniformLocation};
 use jet_lag_core::{
     map::tile::Tile,
-    shape::{Shape, builtin::circle::Circle, compiler::Register},
+    shape::{Shape, builtin::circle::Circle, compiler::Register, types::Centimeters},
 };
 use ndk::hardware_buffer::HardwareBufferRef;
 use pollster::FutureExt;
@@ -32,7 +32,7 @@ use wgpu_hal::gles::TextureInner;
 use zerocopy::IntoBytes;
 
 const TILE_SIZE: f64 = 512.0;
-const MAX_ZOOM: u8 = 20;
+const MAX_ZOOM: u8 = 25;
 
 enum TileEntry {
     Loaded {
@@ -92,13 +92,13 @@ impl OutOfBoundsLayer {
                 fragment_shader,
                 r"#version 300 es
 
-                // uniform highp vec4 fill_color;
                 precision highp int;
+                precision highp float;
                 uniform sampler2D tile;
                 layout (location = 0) in vec2 texCoord;
                 out highp vec4 fragColor;
-                void main() {
-                    vec4 texel = texelFetch(tile, ivec2(texCoord * vec2(textureSize(tile, 0))), 0);
+
+                int decodeSignedDistance(vec4 texel) {
                     uint byte0 = uint(texel.r * 255.0 + 0.5);
                     uint byte1 = uint(texel.g * 255.0 + 0.5);
                     uint byte2 = uint(texel.b * 255.0 + 0.5);
@@ -106,13 +106,35 @@ impl OutOfBoundsLayer {
                     uint unsignedVal = byte0 + (byte1 * 256u) + (byte2 * 65536u) + (byte3 * 16777216u);
                     
                     // bitcast unsignedVal to sint
-                    int signedVal = int(unsignedVal) - int(unsignedVal & 0x80000000u) * 2;
+                    return int(unsignedVal) - int(unsignedVal & 0x80000000u) * 2;
+                }
 
-                    if (signedVal < 5000) {
+                void main() {
+                    ivec2 texSize = textureSize(tile, 0);
+                    vec2 texelCoord = texCoord * vec2(texSize) - 0.5;
+                    ivec2 tc00 = ivec2(floor(texelCoord));
+                    vec2 frac = fract(texelCoord);
+                    
+                    // Fetch 4 corner texels
+                    ivec2 tc10 = tc00 + ivec2(1, 0);
+                    ivec2 tc01 = tc00 + ivec2(0, 1);
+                    ivec2 tc11 = tc00 + ivec2(1, 1);
+                    
+                    // Decode each to signed distance
+                    float d00 = float(decodeSignedDistance(texelFetch(tile, tc00, 0)));
+                    float d10 = float(decodeSignedDistance(texelFetch(tile, tc10, 0)));
+                    float d01 = float(decodeSignedDistance(texelFetch(tile, tc01, 0)));
+                    float d11 = float(decodeSignedDistance(texelFetch(tile, tc11, 0)));
+                    
+                    // Bilinear interpolation
+                    float d0 = mix(d00, d10, frac.x);
+                    float d1 = mix(d01, d11, frac.x);
+                    float signedVal = mix(d0, d1, frac.y);
+                    
+                    if (signedVal > 0.0) {
                         discard;
-                        // fragColor = vec4(0.0, 0.0, 1.0, 0.0); // Blue
                     } else {
-                        fragColor = vec4(float(signedVal) / 10000000.0, 0.0, 0.0, 1.0); // Red gradient
+                        fragColor = vec4((-signedVal / 10000.0), 0.0, 0.0, 1.0);
                     }
                 }",
             );
@@ -419,7 +441,6 @@ impl CustomLayer for OutOfBoundsLayer {
                                         .map(|_| {
                                             // Exponential falloff: lambda=0.3 gives mean ~3.3km, most within 10km
                                             let radius_km = -3.3 * rng.random::<f64>().ln(); // exponential with mean 3.3km
-                                            let radius_km = radius_km.min(10.0); // cap at 10km
 
                                             let angle =
                                                 rng.random_range(0.0..std::f64::consts::TAU);
@@ -431,7 +452,15 @@ impl CustomLayer for OutOfBoundsLayer {
                                         })
                                         .collect();
 
-                                    compiler.point_cloud(points)
+                                    let pc = compiler.point_cloud(points);
+                                    let pc = compiler.dilate(pc, Centimeters::from_meters(50.0));
+
+                                    let c = compiler.with(&Circle::new(
+                                        geo::Point::new(center_lon - 0.05, center_lat),
+                                        Centimeters::from_meters(500.0),
+                                    ));
+
+                                    compiler.subtract(pc, c)
                                 }
                             }
                             thread

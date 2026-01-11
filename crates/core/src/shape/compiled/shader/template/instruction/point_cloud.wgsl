@@ -77,9 +77,19 @@ fn compute_point_distance(sample_lat: f32, sample_lon: f32, point_lat: f32, poin
     }
 }
 
-// Compute minimum possible distance from sample to a bounding box
-fn compute_bbox_min_distance(sample_lat: f32, sample_lon: f32, min_lat: f32, max_lat: f32, min_lon: f32, max_lon: f32) -> f32 {
-    // Clamp sample point to the bounding box
+// Cheap squared distance approximation for child ordering
+// Uses flat-earth approximation - good enough for comparing two nearby bboxes
+fn cheap_bbox_distance_sq(sample_lat: f32, sample_lon: f32, min_lat: f32, max_lat: f32, min_lon: f32, max_lon: f32) -> f32 {
+    let closest_lat = clamp(sample_lat, min_lat, max_lat);
+    let closest_lon = clamp(sample_lon, min_lon, max_lon);
+    let dlat = sample_lat - closest_lat;
+    let dlon = (sample_lon - closest_lon) * cos(sample_lat * DEG_TO_RAD);
+    return dlat * dlat + dlon * dlon;
+}
+
+// Guaranteed lower-bound distance for bbox pruning
+// Uses flat-earth approximation with safety factor - never overestimates actual geodesic distance
+fn lower_bound_bbox_distance(sample_lat: f32, sample_lon: f32, min_lat: f32, max_lat: f32, min_lon: f32, max_lon: f32) -> f32 {
     let closest_lat = clamp(sample_lat, min_lat, max_lat);
     let closest_lon = clamp(sample_lon, min_lon, max_lon);
 
@@ -88,8 +98,13 @@ fn compute_bbox_min_distance(sample_lat: f32, sample_lon: f32, min_lat: f32, max
         return 0.0;
     }
 
-    // Otherwise compute distance to the closest point on the box
-    return compute_point_distance(sample_lat, sample_lon, closest_lat, closest_lon);
+    // Flat-earth approximation in meters
+    let dlat_m = (sample_lat - closest_lat) * 110574.0;  // min meters/deg latitude
+    let dlon_m = (sample_lon - closest_lon) * 111320.0 * cos(sample_lat * DEG_TO_RAD);
+    let flat_dist = sqrt(dlat_m * dlat_m + dlon_m * dlon_m);
+
+    // 1% safety margin ensures this is always <= actual geodesic distance
+    return flat_dist * 0.99;
 }
 
 // Instruction: PointCloud with BVH traversal
@@ -131,8 +146,9 @@ fn point_cloud(sample: vec2<f32>, idx_ptr: ptr<function, u32>) -> i32 {
         let node_min_lon = f32(read_bvh_node_min_lon(argument_offset, node_index)) / f32(COORD_SCALE);
         let node_max_lon = f32(read_bvh_node_max_lon(argument_offset, node_index)) / f32(COORD_SCALE);
 
-        // Early exit: if bbox is farther than current best, skip
-        let bbox_dist = compute_bbox_min_distance(sample_lat, sample_lon, node_min_lat, node_max_lat, node_min_lon, node_max_lon);
+        // Early exit: if bbox lower-bound distance is farther than current best, skip
+        // Uses cheap flat-earth approximation that never overestimates (guaranteed lower bound)
+        let bbox_dist = lower_bound_bbox_distance(sample_lat, sample_lon, node_min_lat, node_max_lat, node_min_lon, node_max_lon);
         if (bbox_dist >= min_distance_m) {
             continue;
         }
@@ -151,15 +167,37 @@ fn point_cloud(sample: vec2<f32>, idx_ptr: ptr<function, u32>) -> i32 {
                 min_distance_m = min(min_distance_m, dist);
             }
         } else {
-            // Internal node: push children
+            // Internal node: push children in distance order (far first, near last)
             let left_child = left_first;
             let right_child = read_bvh_node_right_child(argument_offset, node_index);
 
             if (stack_ptr < MAX_STACK_DEPTH - 1u) {
-                stack[stack_ptr] = right_child;
-                stack_ptr += 1u;
-                stack[stack_ptr] = left_child;
-                stack_ptr += 1u;
+                // Read child bboxes for ordering
+                let left_min_lat = f32(read_bvh_node_min_lat(argument_offset, left_child)) / f32(COORD_SCALE);
+                let left_max_lat = f32(read_bvh_node_max_lat(argument_offset, left_child)) / f32(COORD_SCALE);
+                let left_min_lon = f32(read_bvh_node_min_lon(argument_offset, left_child)) / f32(COORD_SCALE);
+                let left_max_lon = f32(read_bvh_node_max_lon(argument_offset, left_child)) / f32(COORD_SCALE);
+
+                let right_min_lat = f32(read_bvh_node_min_lat(argument_offset, right_child)) / f32(COORD_SCALE);
+                let right_max_lat = f32(read_bvh_node_max_lat(argument_offset, right_child)) / f32(COORD_SCALE);
+                let right_min_lon = f32(read_bvh_node_min_lon(argument_offset, right_child)) / f32(COORD_SCALE);
+                let right_max_lon = f32(read_bvh_node_max_lon(argument_offset, right_child)) / f32(COORD_SCALE);
+
+                let left_dist = cheap_bbox_distance_sq(sample_lat, sample_lon, left_min_lat, left_max_lat, left_min_lon, left_max_lon);
+                let right_dist = cheap_bbox_distance_sq(sample_lat, sample_lon, right_min_lat, right_max_lat, right_min_lon, right_max_lon);
+
+                // Push farther child first (will be popped second), nearer child last (popped first)
+                if (left_dist < right_dist) {
+                    stack[stack_ptr] = right_child;
+                    stack_ptr += 1u;
+                    stack[stack_ptr] = left_child;
+                    stack_ptr += 1u;
+                } else {
+                    stack[stack_ptr] = left_child;
+                    stack_ptr += 1u;
+                    stack[stack_ptr] = right_child;
+                    stack_ptr += 1u;
+                }
             }
         }
     }

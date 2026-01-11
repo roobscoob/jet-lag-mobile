@@ -39,7 +39,7 @@ pub struct PointBvh {
 }
 
 impl PointBvh {
-    const MAX_LEAF_SIZE: usize = 4;
+    const MAX_LEAF_SIZE: usize = 8;
 
     /// Build a BVH from a collection of points.
     pub fn build(points: &[Point]) -> Self {

@@ -1,4 +1,7 @@
-use crate::{map::tile::Tile, shape::{bvh::PointBvh, compiled::shader::ShaderArgument}};
+use crate::{
+    map::tile::Tile,
+    shape::{bvh::PointBvh, compiled::shader::ShaderArgument, types::Centimeters},
+};
 
 pub trait IntoShaderArgument {
     fn into_shader_argument(&self, buffer: &mut Vec<u8>, tile: &Tile) -> Vec<ShaderArgument>;
@@ -30,5 +33,16 @@ impl IntoShaderArgument for PointBvh {
         self.write_to_buffer(buffer);
 
         vec![ShaderArgument { offset, length }]
+    }
+}
+
+impl IntoShaderArgument for Centimeters {
+    fn into_shader_argument(&self, buffer: &mut Vec<u8>, _tile: &Tile) -> Vec<ShaderArgument> {
+        let offset = (buffer.len() / 4) as u32;
+
+        let value_cm = self.0;
+        buffer.extend_from_slice(&value_cm.to_le_bytes());
+
+        vec![ShaderArgument { offset, length: 1 }]
     }
 }
